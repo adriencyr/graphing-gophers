@@ -27,30 +27,14 @@ export default function Dashboard() {
   const objectUrlRef = useRef(null);
   const uploadInputRef = useRef(null);
 
+  // Used when refreshing the list after a graph is saved.
   const loadSavedGraphs = useCallback(async () => {
     setGraphsLoading(true);
     setGraphsError("");
 
     try {
-      const response = await fetch("/api/graphs", {
-        cache: "no-store",
-      });
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          result.error ||
-            (response.status === 401
-              ? "Sign in to view your saved graphs."
-              : "Could not load saved graphs.")
-        );
-      }
-
-      if (!Array.isArray(result.graphs)) {
-        throw new Error("The saved graphs response was invalid.");
-      }
-
-      setSavedGraphs(result.graphs);
+      const graphs = await fetchSavedGraphsFromApi();
+      setSavedGraphs(graphs);
     } catch (error) {
       setGraphsError(
         error instanceof Error
@@ -62,9 +46,35 @@ export default function Dashboard() {
     }
   }, []);
 
+  // Load saved graphs when the dashboard first appears.
   useEffect(() => {
-    loadSavedGraphs();
-  }, [loadSavedGraphs]);
+    let cancelled = false;
+
+    fetchSavedGraphsFromApi()
+      .then((graphs) => {
+        if (!cancelled) {
+          setSavedGraphs(graphs);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setGraphsError(
+            error instanceof Error
+              ? error.message
+              : "Could not load saved graphs."
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setGraphsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Release temporary image memory when leaving the page.
   useEffect(() => {
@@ -266,6 +276,7 @@ export default function Dashboard() {
                           getSavedGraphData(savedGraph)?.title ||
                           "Untitled graph"}
                       </span>
+
                       {formatSavedDate(savedGraph.created_at) && (
                         <span className="mt-1 block text-xs text-[#514752]">
                           {formatSavedDate(savedGraph.created_at)}
@@ -587,4 +598,24 @@ function formatSavedDate(value) {
   return Number.isNaN(date.getTime())
     ? ""
     : `Saved ${date.toLocaleDateString()}`;
+}
+
+async function fetchSavedGraphsFromApi() {
+  const response = await fetch("/api/graphs", { cache: "no-store" });
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      result.error ||
+        (response.status === 401
+          ? "Sign in to view your saved graphs."
+          : "Could not load saved graphs.")
+    );
+  }
+
+  if (!Array.isArray(result.graphs)) {
+    throw new Error("The saved graphs response was invalid.");
+  }
+
+  return result.graphs;
 }
