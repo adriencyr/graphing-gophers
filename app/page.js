@@ -1,3 +1,4 @@
+import Link from "next/link";
 import GoogleSignIn from "../components/GoogleSignIn";
 
 export default function Home() {
@@ -42,18 +43,22 @@ export default function Home() {
           </p>
 
           {/* Navigation */}
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              className="min-h-12 rounded-lg border border-white bg-white px-5 py-3 text-sm font-semibold text-[#171923] transition-colors hover:bg-[#F3E7EE] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#F0C8DF]"
-            >
-              Continue as Guest
-            </button>
+         
+<div className="mt-7 flex flex-col gap-3 sm:flex-row">
+  {/* Guest navigation */}
+  <Link
+    href="/guest"
+    className="inline-flex min-h-12 items-center justify-center rounded-lg border border-white bg-white px-5 py-3 text-sm font-semibold text-[#171923] transition-colors hover:bg-[#F3E7EE] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#F0C8DF]"
+  >
+    Continue as Guest
+  </Link>
 
-            <div className="min-w-0 sm:flex-1">
-              <GoogleSignIn />
-            </div>
-          </div>
+  {/* Existing Google sign-in component */}
+  <div className="min-w-0 sm:flex-1">
+    <GoogleSignIn />
+  </div>
+</div>
+
 
           {/* Guest information */}
           <p className="mt-5 text-sm text-white/85">

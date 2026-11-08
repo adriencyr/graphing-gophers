@@ -15,7 +15,7 @@ export default function Dashboard() {
   const previousFocusRef = useRef(null);
   const objectUrlRef = useRef(null);
 
-  // Release temporary image memory when leaving the page
+  // Clean up temporary image URLs
   useEffect(() => {
     return () => {
       if (objectUrlRef.current) {
@@ -24,7 +24,7 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Open the accessible image preview
+  // Open image preview
   function openPreview() {
     previousFocusRef.current = document.activeElement;
 
@@ -37,7 +37,7 @@ export default function Dashboard() {
     dialogRef.current?.close();
   }
 
-  // Validate and preview the selected graph image
+  // Validate PNG and JPG images
   function handleFileChange(event) {
     const file = event.target.files?.[0];
 
@@ -62,7 +62,6 @@ export default function Dashboard() {
       return;
     }
 
-    // Create a temporary browser URL for preview
     const newUrl = URL.createObjectURL(file);
 
     if (objectUrlRef.current) {
@@ -75,7 +74,7 @@ export default function Dashboard() {
     setPreviewUrl(newUrl);
     setFileError("");
 
-    // Open automatically after selection
+    // Preview automatically after selection
     openPreview();
   }
 
@@ -89,66 +88,85 @@ export default function Dashboard() {
           onClick={() => setHistoryOpen(!historyOpen)}
           aria-expanded={historyOpen}
           aria-controls="graph-history"
-          className="min-h-12 rounded-lg border-2 border-[#554450] bg-white px-4 py-2 font-semibold focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
+          className="min-h-12 rounded-xl border-2 border-[#554450] bg-white px-4 py-2 font-semibold focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
         >
           {historyOpen ? "Hide History" : "Show History"}
         </button>
       </div>
 
-      <div className="grid min-h-[calc(100vh-65px)] lg:grid-cols-[230px_minmax(0,1fr)]">
+      <div className="grid items-start lg:grid-cols-[270px_minmax(0,1fr)]">
 
         {/* HISTORY SIDEBAR */}
-        <aside
-          id="graph-history"
-          aria-labelledby="history-heading"
-          className={`border-b border-[#D8C6D1] bg-[#F7F2F5] px-6 py-9 lg:block lg:border-b-0 lg:border-r ${
-            historyOpen ? "block" : "hidden"
-          }`}
-        >
-          <h2
-            id="history-heading"
-            className="text-lg font-bold"
-          >
-            Recent Graphs
-          </h2>
+       
+{/* HISTORY SIDEBAR */}
 
-          <div
-            aria-hidden="true"
-            className="mt-3 h-1 w-10 rounded-full bg-[#774365]"
-          />
+{/* HISTORY SIDEBAR */}
+<aside
+  id="graph-history"
+  aria-labelledby="history-heading"
+  className={`p-4 lg:h-full lg:self-stretch lg:py-10 lg:pl-5 lg:pr-0 ${
+    historyOpen ? "block" : "hidden lg:block"
+  }`}
+>
+  <div className="flex min-h-[260px] flex-col rounded-[28px] border-2 border-[#C7A1B8] bg-[#FAF7F9] p-5 shadow-[4px_4px_0px_#D4B9C9] lg:h-full lg:min-h-0">
 
-          <div className="mt-8 border-t border-[#D8C6D1] pt-7">
-            <p className="text-sm font-semibold">
-              No saved graphs yet
-            </p>
+    <h2
+      id="history-heading"
+      className="text-lg font-bold text-[#171923]"
+    >
+      Recent Graphs
+    </h2>
 
-            <p className="mt-2 text-sm leading-6 text-[#514752]">
-              Your saved graphs will appear here.
-            </p>
-          </div>
-        </aside>
+    <div
+      aria-hidden="true"
+      className="mt-3 h-1 w-10 rounded-full bg-[#774365]"
+    />
 
-        {/* WORKSPACE */}
+    <div className="mt-7 rounded-2xl border border-[#E2D4DE] bg-white p-4">
+      <p className="text-sm font-semibold text-[#171923]">
+        No saved graphs yet
+      </p>
+
+      <p className="mt-2 text-sm leading-6 text-[#514752]">
+        Your saved graphs will appear here.
+      </p>
+    </div>
+
+  </div>
+</aside>
+        {/* MAIN WORKSPACE */}
         <section
           aria-labelledby="dashboard-heading"
-          className="min-w-0 px-5 py-10 sm:px-10 lg:px-14 lg:py-14"
+          className="min-w-0 px-5 py-8 sm:px-10 lg:px-14 lg:py-10"
         >
           <div className="mx-auto max-w-3xl">
 
-            <h1
-              id="dashboard-heading"
-              className="text-2xl font-bold tracking-tight sm:text-3xl"
-            >
-              Explore Graphs Through Sound
-            </h1>
+            {/* NEW ROUNDED WELCOME CARD */}
+            <div className="rounded-[28px] border-2 border-[#C7A1B8] bg-[#FAF7F9] px-6 py-7 shadow-[4px_4px_0px_#D4B9C9] sm:px-8 sm:py-8">
 
-            <p className="mt-3 text-base leading-7 text-[#443B46]">
-              Upload a graph image or enter an equation
-              to get started.
-            </p>
+              {/* Decorative accent */}
+              <div
+                aria-hidden="true"
+                className="mb-4 h-1 w-12 rounded-full bg-[#774365]"
+              />
 
-            {/* MAIN WORKSPACE CARD */}
-            <div className="mt-8 overflow-hidden rounded-2xl border border-[#8B7786] bg-white shadow-[4px_4px_0px_#C9B5C0]">
+              <h1
+                id="dashboard-heading"
+                className="text-2xl font-bold leading-tight tracking-tight sm:text-3xl"
+              >
+                Explore Graphs Through Sound
+              </h1>
+
+              <p className="mt-3 text-base leading-7 text-[#443B46]">
+                Upload a graph image or enter an equation
+                to get started.
+              </p>
+
+              
+            </div>
+
+            {/* MAIN INPUT CARD */}
+            <div className="mt-7 overflow-hidden rounded-[24px] border border-[#8B7786] bg-white shadow-[4px_4px_0px_#C9B5C0]">
 
               {/* UPLOAD OPTION */}
               <section
@@ -157,6 +175,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-start gap-4">
 
+                  {/* Upload icon */}
                   <div
                     aria-hidden="true"
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#F2E4EC]"
@@ -186,7 +205,7 @@ export default function Dashboard() {
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-[#514752]">
-                      Choose a graph image to preview and explore.
+                      Choose a graph image to preview.
                     </p>
                   </div>
                 </div>
@@ -210,7 +229,7 @@ export default function Dashboard() {
                         ? "upload-help upload-error"
                         : "upload-help"
                     }
-                    className="mt-3 block min-h-14 w-full min-w-0 rounded-lg border-2 border-[#766374] bg-[#FCFAFB] p-2 text-sm text-[#171923] file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-[#774365] file:px-4 file:py-3 file:font-semibold file:text-white hover:file:bg-[#603352] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
+                    className="mt-3 block min-h-14 w-full min-w-0 rounded-xl border-2 border-[#766374] bg-[#FCFAFB] p-2 text-sm text-[#171923] file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#774365] file:px-4 file:py-3 file:font-semibold file:text-white hover:file:bg-[#603352] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
                   />
 
                   <p
@@ -232,14 +251,17 @@ export default function Dashboard() {
 
                   {selectedFile && (
                     <div className="mt-4 flex flex-wrap items-center gap-3">
-                      <p className="min-w-0 break-all text-sm font-medium text-[#514752]">
-                        Image ready for preview
+                      <p
+                        role="status"
+                        className="min-w-0 break-all text-sm font-medium text-[#514752]"
+                      >
+                        Selected: {selectedFile}
                       </p>
 
                       <button
                         type="button"
                         onClick={openPreview}
-                        className="min-h-11 rounded-lg border-2 border-[#774365] bg-white px-4 py-2 text-sm font-bold text-[#774365] hover:bg-[#F7EDF3] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
+                        className="min-h-11 rounded-xl border-2 border-[#774365] bg-white px-4 py-2 text-sm font-bold text-[#774365] hover:bg-[#F7EDF3] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
                       >
                         View Image
                       </button>
@@ -248,7 +270,7 @@ export default function Dashboard() {
                 </div>
               </section>
 
-              {/* OR divider */}
+              {/* OR DIVIDER */}
               <div
                 aria-hidden="true"
                 className="flex items-center gap-4 px-6 sm:px-9"
@@ -267,6 +289,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-start gap-4">
 
+                  {/* Equation icon */}
                   <div
                     aria-hidden="true"
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#F2E4EC] text-2xl font-semibold text-[#774365]"
@@ -283,7 +306,7 @@ export default function Dashboard() {
                     </h2>
 
                     <p className="mt-2 text-sm leading-6 text-[#514752]">
-                      Type an equation you want to explore.
+                      Type an equation to explore.
                     </p>
                   </div>
                 </div>
@@ -300,12 +323,14 @@ export default function Dashboard() {
                     id="equation-input"
                     type="text"
                     value={equation}
-                    onChange={(event) => setEquation(event.target.value)}
+                    onChange={(event) =>
+                      setEquation(event.target.value)
+                    }
                     placeholder="y = x^2 + 3"
                     autoComplete="off"
                     spellCheck={false}
                     aria-describedby="equation-help"
-                    className="mt-3 min-h-14 w-full rounded-lg border-2 border-[#766374] bg-[#FCFAFB] px-4 py-3 text-base text-[#171923] placeholder:text-[#6B6070] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
+                    className="mt-3 min-h-14 w-full rounded-xl border-2 border-[#766374] bg-[#FCFAFB] px-4 py-3 text-base text-[#171923] placeholder:text-[#6B6070] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
                   />
 
                   <p
@@ -317,6 +342,7 @@ export default function Dashboard() {
                 </div>
               </section>
             </div>
+
           </div>
         </section>
       </div>
@@ -327,9 +353,9 @@ export default function Dashboard() {
         aria-labelledby="preview-title"
         aria-describedby="preview-description"
         onClose={() => previousFocusRef.current?.focus()}
-        className="m-auto w-[min(92vw,850px)] max-h-[90dvh] overflow-y-auto rounded-2xl border-2 border-[#554450] bg-white p-0 text-[#171923] shadow-2xl backdrop:bg-[#171923]/80"
+        className="m-auto max-h-[90dvh] w-[min(92vw,850px)] overflow-y-auto rounded-2xl border-2 border-[#554450] bg-white p-0 text-[#171923] shadow-2xl backdrop:bg-[#171923]/80"
       >
-        {/* Popup header */}
+        {/* Preview header */}
         <div className="flex items-center justify-between gap-4 border-b border-[#E2D4DE] px-5 py-4 sm:px-7">
           <h2
             id="preview-title"
@@ -343,13 +369,13 @@ export default function Dashboard() {
             autoFocus
             onClick={closePreview}
             aria-label="Close graph preview"
-            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-[#8B7786] text-xl font-bold hover:bg-[#F2E4EC] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-[#8B7786] text-xl font-bold hover:bg-[#F2E4EC] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
           >
             ×
           </button>
         </div>
 
-        {/* Selected graph image */}
+        {/* Selected image */}
         <div className="px-5 py-5 sm:px-7">
           <p className="mb-4 break-all text-sm font-medium text-[#514752]">
             {selectedFile}
@@ -379,7 +405,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={closePreview}
-            className="mt-5 min-h-12 rounded-lg bg-[#774365] px-6 py-3 font-semibold text-white hover:bg-[#603352] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
+            className="mt-5 min-h-12 rounded-xl bg-[#774365] px-6 py-3 font-semibold text-white hover:bg-[#603352] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
           >
             Close Preview
           </button>
@@ -388,11 +414,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
