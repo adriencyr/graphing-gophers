@@ -95,6 +95,9 @@ function makeTicks(min, max, targetCount = 6) {
  *
  * @param {Object} props
  * @param {Object} props.graph - Graph data.
+ * @param {boolean} [props.showPoints=true] - Show individual point markers.
+ * @param {Array<Array<{x: number, y: number}>>} [props.graph.segments]
+ *   Optional separate curves, used to preserve equation domain gaps.
  * @param {string} [props.graph.title] - Title shown above the graph.
  * @param {string} [props.graph.xLabel] - Horizontal-axis label.
  * @param {string} [props.graph.yLabel] - Vertical-axis label.
@@ -114,7 +117,7 @@ function makeTicks(min, max, targetCount = 6) {
  *   }}
  * />
  */
-export default function GraphPlot({ graph = {} }) {
+export default function GraphPlot({ graph = {}, showPoints = true }) {
   // Keep only points with valid numeric coordinates.
   const points = Array.isArray(graph.points)
     ? graph.points.filter(
@@ -153,10 +156,12 @@ export default function GraphPlot({ graph = {} }) {
   // Sort points from left to right before drawing the graph.
   const orderedPoints = [...points].sort((a, b) => a.x - b.x);
 
-  // Convert supplied points to SVG coordinate strings for the polyline.
-  const plottedPoints = orderedPoints
-    .map((point) => `${scaleX(point.x)},${scaleY(point.y)}`)
-    .join(" ");
+  // Equation graphs can contain gaps; image-based graphs use one curve.
+  const segments = Array.isArray(graph.segments)
+    ? graph.segments.filter(Array.isArray).map((segment) => segment.filter(
+        (point) => Number.isFinite(point?.x) && Number.isFinite(point?.y),
+      ))
+    : [orderedPoints];
 
   // Put axes at zero when zero is visible; otherwise use a plot edge.
   const xAxisY =
@@ -250,20 +255,22 @@ export default function GraphPlot({ graph = {} }) {
           />
         </g>
 
-        {/* Connect every supplied coordinate with straight segments. */}
-        {orderedPoints.length > 1 && (
+        {/* Draw each continuous section separately, preserving domain gaps. */}
+        {segments.filter((segment) => segment.length > 1).map((segment, i) => (
           <polyline
-            points={plottedPoints}
+            key={i}
+            points={segment.map((point) =>
+              `${scaleX(point.x)},${scaleY(point.y)}`).join(" ")}
             fill="none"
             stroke="#2563eb"
             strokeWidth="3"
             strokeLinejoin="round"
             strokeLinecap="round"
           />
-        )}
+        ))}
 
         {/* Draw a marker at every supplied coordinate. */}
-        {orderedPoints.map((point, index) => (
+        {showPoints && orderedPoints.map((point, index) => (
           <circle
             key={`${point.x}-${point.y}-${index}`}
             cx={scaleX(point.x)}

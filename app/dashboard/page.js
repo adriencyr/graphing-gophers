@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import GraphImageReader from "../../components/GraphImageReader";
 import GraphPlot from "../../components/GraphPlot";
+import EquationGraph from "../../components/EquationGraph";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
@@ -13,7 +14,6 @@ export default function Dashboard() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [fileError, setFileError] = useState("");
-  const [equation, setEquation] = useState("");
 
   const [savedGraphs, setSavedGraphs] = useState([]);
   const [graphsLoading, setGraphsLoading] = useState(true);
@@ -473,33 +473,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="mt-6">
-                  <label
-                    htmlFor="equation-input"
-                    className="block text-sm font-semibold"
-                  >
-                    Mathematical equation
-                  </label>
-
-                  <input
-                    id="equation-input"
-                    type="text"
-                    value={equation}
-                    onChange={(event) => setEquation(event.target.value)}
-                    placeholder="y = x^2 + 3"
-                    autoComplete="off"
-                    spellCheck={false}
-                    aria-describedby="equation-help"
-                    className="mt-3 min-h-14 w-full rounded-lg border-2 border-[#766374] bg-[#FCFAFB] px-4 py-3 text-base text-[#171923] placeholder:text-[#6B6070] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365]"
-                  />
-
-                  <p
-                    id="equation-help"
-                    className="mt-3 text-sm text-[#514752]"
-                  >
-                    Example: y = x^2 + 3
-                  </p>
-                </div>
+                <EquationGraph />
               </section>
             </div>
           </div>
