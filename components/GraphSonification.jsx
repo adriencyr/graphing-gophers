@@ -1,31 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const MIN_FREQUENCY = 220;
 const MAX_FREQUENCY = 880;
 const TONE_DURATION_SECONDS = 0.3;
 const TONE_VOLUME = 0.15;
 
-/**
- * Keep an x-coordinate within the graph's visible range.
- */
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-/**
- * Format a coordinate for display without unnecessary trailing digits.
- */
 function formatValue(value) {
   return Number(value.toPrecision(4)).toString();
 }
 
 /**
- * Find the graph's y-value at a given x-coordinate.
- * Values between points are linearly interpolated.
- *
- * This assumes the points describe a function with one y-value per x-value.
+ * Find y at x using linear interpolation between adjacent points.
  */
 function getYAtX(points, x) {
   if (x <= points[0].x) return points[0].y;
@@ -50,28 +41,45 @@ function getYAtX(points, x) {
 }
 
 /**
- * Lets a user explore a graph one x-unit at a time.
- * The y-value at the selected x-coordinate determines the tone's pitch.
- *
- * Expected graph shape:
- * {
- *   points: [{ x: number, y: number }, ...]
- * }
+ * Lets a user explore a graph through sound and reports the selected x-value
+ * to the dashboard so the voice assistant can use the same position.
  */
-export default function GraphSonification({ graph }) {
+export default function GraphSonification({ graph, onPositionChange }) {
   const [selectedX, setSelectedX] = useState(null);
   const [announcement, setAnnouncement] = useState("");
   const [error, setError] = useState("");
   const audioContextRef = useRef(null);
 
-  const points = Array.isArray(graph?.points)
-    ? graph.points
-        .filter(
-          (point) =>
-            Number.isFinite(point?.x) && Number.isFinite(point?.y)
-        )
-        .sort((a, b) => a.x - b.x)
-    : [];
+  const graphPoints = graph?.points;
+  const points = useMemo(
+    () =>
+      Array.isArray(graphPoints)
+        ? graphPoints
+            .filter(
+              (point) =>
+                Number.isFinite(point?.x) && Number.isFinite(point?.y)
+            )
+            .sort((a, b) => a.x - b.x)
+        : [],
+    [graphPoints]
+  );
+
+  // Report the starting or current x-position to the dashboard.
+  useEffect(() => {
+    if (points.length < 2) {
+      onPositionChange?.(null);
+      return;
+    }
+
+    const minX = points[0].x;
+    const maxX = points[points.length - 1].x;
+    const position =
+      selectedX === null
+        ? clamp(0, minX, maxX)
+        : clamp(selectedX, minX, maxX);
+
+    onPositionChange?.(position);
+  }, [points, selectedX, onPositionChange]);
 
   useEffect(() => {
     return () => {
@@ -95,16 +103,11 @@ export default function GraphSonification({ graph }) {
 
   const minX = points[0].x;
   const maxX = points[points.length - 1].x;
-
-  // Start at x = 0 when it is in range; otherwise use the nearest boundary.
   const initialX = clamp(0, minX, maxX);
   const currentX =
     selectedX === null ? initialX : clamp(selectedX, minX, maxX);
   const currentY = getYAtX(points, currentX);
 
-  /**
-   * Play one short tone. Higher y-values map to higher pitches.
-   */
   async function playTone(yValue) {
     try {
       const AudioContextClass =
@@ -121,16 +124,12 @@ export default function GraphSonification({ graph }) {
         audioContextRef.current = audioContext;
       }
 
-      // Browsers may suspend audio until a user action resumes it.
       await audioContext.resume();
 
       const minY = Math.min(...points.map((point) => point.y));
       const maxY = Math.max(...points.map((point) => point.y));
-
-      // A horizontal graph uses a middle-range pitch.
       const normalizedY =
         minY === maxY ? 0.5 : (yValue - minY) / (maxY - minY);
-
       const frequency =
         MIN_FREQUENCY + normalizedY * (MAX_FREQUENCY - MIN_FREQUENCY);
 
@@ -142,14 +141,12 @@ export default function GraphSonification({ graph }) {
       oscillator.type = "sine";
       oscillator.frequency.setValueAtTime(frequency, startTime);
 
-      // Fade the tone in and out to avoid clicks.
       gain.gain.setValueAtTime(0.0001, startTime);
       gain.gain.linearRampToValueAtTime(TONE_VOLUME, startTime + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, endTime);
 
       oscillator.connect(gain);
       gain.connect(audioContext.destination);
-
       oscillator.start(startTime);
       oscillator.stop(endTime);
 
@@ -163,9 +160,6 @@ export default function GraphSonification({ graph }) {
     }
   }
 
-  /**
-   * Move one x-unit, clamp at the graph boundaries, and play the new y-value.
-   */
   function moveBy(direction) {
     const nextX = clamp(currentX + direction, minX, maxX);
 
@@ -182,13 +176,9 @@ export default function GraphSonification({ graph }) {
     setAnnouncement(
       `x ${formatValue(nextX)}, y ${formatValue(nextY)}. Playing tone.`
     );
-
     void playTone(nextY);
   }
 
-  /**
-   * Use the arrow keys while the graph controls are focused.
-   */
   function handleKeyDown(event) {
     if (event.key === "ArrowRight") {
       event.preventDefault();
