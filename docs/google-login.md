@@ -27,10 +27,11 @@ to the Auth0 login URL. Its promise stays pending to keep the button disabled
 until navigation unloads the page. The reusable button remains
 provider-independent. `GoogleSignIn` supplies the Auth0 callback within a small
 Client Component so the homepage and shared layout can remain Server Components.
-The homepage has one skip link in the shared layout and side-by-side actions
-with compact sizing for narrow screens. Callbacks originate in a Client Component
-because ordinary
-functions cannot cross the Next.js server/client boundary.
+The homepage keeps its original skip link, gradient, guest button styling, and
+responsive layout: actions are side by side at the `sm` breakpoint and above.
+The Google option replaces the original Sign In / Register control, with a flex
+container allowing it to use the remaining row width. Callbacks originate in a
+Client Component because functions cannot cross the server/client boundary.
 
 When Back or Forward restores the page from the browser cache, `GoogleSignIn`
 handles the persisted `pageshow` event by remounting the button. This resets

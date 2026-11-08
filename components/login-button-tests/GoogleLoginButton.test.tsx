@@ -130,6 +130,9 @@ it("redirects to Google and permits retry after Back restores the page", () => {
 
   try {
     render(<Home />);
+    expect(screen.getByRole("link", {
+      name: "Skip to main content",
+    })).toHaveAttribute("href", "#main-content");
     expect(
       screen.getByRole("heading", { level: 1 }),
     ).toBeInTheDocument();
