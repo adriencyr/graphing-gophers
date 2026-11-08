@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createEquationGraph } from "../lib/equationGraph";
-import GraphPlot from "./GraphPlot";
+import GraphExplorer from "./GraphExplorer";
 
 const inputStyle =
   "mt-3 min-h-12 w-full rounded-lg border-2 border-[#766374] " +
@@ -107,7 +107,7 @@ export default function EquationGraph() {
             Curves are approximated from sampled points.
             {graph.hasGaps && " Undefined or out-of-range values leave gaps."}
           </p>
-          <GraphPlot graph={graph} showPoints={false} />
+          <GraphExplorer graph={graph} showPoints={false} />
         </div>
       )}
     </div>

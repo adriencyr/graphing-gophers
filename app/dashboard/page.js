@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import GraphImageReader from "../../components/GraphImageReader";
-import GraphPlot from "../../components/GraphPlot";
+import GraphExplorer from "../../components/GraphExplorer";
 import EquationGraph from "../../components/EquationGraph";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -328,7 +328,7 @@ export default function Dashboard() {
                 >
                   Graph Viewer
                 </h2>
-                <GraphPlot graph={activeGraph} />
+                <GraphExplorer graph={activeGraph} />
               </section>
             )}
 

@@ -95,6 +95,7 @@ function makeTicks(min, max, targetCount = 6) {
  *
  * @param {Object} props
  * @param {Object} props.graph - Graph data.
+ * @param {{x: number, y: number} | null} [props.selectedPoint] - Audio cursor.
  * @param {boolean} [props.showPoints=true] - Show individual point markers.
  * @param {Array<Array<{x: number, y: number}>>} [props.graph.segments]
  *   Optional separate curves, used to preserve equation domain gaps.
@@ -117,7 +118,9 @@ function makeTicks(min, max, targetCount = 6) {
  *   }}
  * />
  */
-export default function GraphPlot({ graph = {}, showPoints = true }) {
+export default function GraphPlot({
+  graph = {}, showPoints = true, selectedPoint = null,
+}) {
   // Keep only points with valid numeric coordinates.
   const points = Array.isArray(graph.points)
     ? graph.points.filter(
@@ -281,6 +284,23 @@ export default function GraphPlot({ graph = {}, showPoints = true }) {
             <title>{`(${point.x}, ${point.y})`}</title>
           </circle>
         ))}
+
+        {/* The audio cursor uses the same coordinate transform as the curve. */}
+        {Number.isFinite(selectedPoint?.x) &&
+          Number.isFinite(selectedPoint?.y) && (
+          <g aria-label={`Selected point x ${selectedPoint.x}, ` +
+            `y ${selectedPoint.y}`}>
+            <line
+              x1={scaleX(selectedPoint.x)} x2={scaleX(selectedPoint.x)}
+              y1={margin.top} y2={height - margin.bottom}
+              stroke="#774365" strokeWidth="2" strokeDasharray="5 4"
+            />
+            <circle
+              cx={scaleX(selectedPoint.x)} cy={scaleY(selectedPoint.y)}
+              r="8" fill="#774365" stroke="white" strokeWidth="2"
+            />
+          </g>
+        )}
 
         {/* Axis labels. */}
         <text
