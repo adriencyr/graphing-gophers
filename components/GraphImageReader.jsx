@@ -7,8 +7,8 @@ const ALLOWED_TYPES = new Set(["image/png", "image/jpeg"]);
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 /**
- * Analyzes the image selected by the dashboard and sends the graph data
- * back to the dashboard's shared graph viewer.
+ * Analyzes an image selected by the dashboard and sends extracted graph data
+ * to the shared viewer (GraphPlot, sonification, and GraphGuide).
  */
 export default function GraphImageReader({
   selectedImage = null,
@@ -16,52 +16,46 @@ export default function GraphImageReader({
   onGraphSaved = () => {},
 }) {
   const [analysis, setAnalysis] = useState(null);
+  const requestId = useRef(0);
   const requestControllerRef = useRef(null);
 
-  // Cancel an old request if the selected image changes or this component
-  // unmounts. The effect deliberately does not call parent state setters.
+  // Invalidate and cancel an in-flight analysis when the file changes
+  // or the reader unmounts. Parent state updates are handled elsewhere.
   useEffect(() => {
-    return () => requestControllerRef.current?.abort();
+    return () => {
+      requestId.current += 1;
+      requestControllerRef.current?.abort();
+    };
   }, [selectedImage]);
 
+  // Never display results for an image that is no longer selected.
   const currentAnalysis =
     analysis?.image === selectedImage ? analysis : null;
 
   const validationError = getImageValidationError(selectedImage);
+  const graph = currentAnalysis?.graph || null;
   const error = currentAnalysis?.error || "";
   const message = currentAnalysis?.message || "";
-  const graph = currentAnalysis?.graph || null;
   const isLoading = currentAnalysis?.isLoading || false;
 
   async function handleSubmit(event) {
     event.preventDefault();
 
-    // Clear the previous graph when the user starts a new analysis.
+    // The shared viewer should not retain an old graph during a new analysis.
     onGraphRead(null);
-
-    if (!selectedImage) {
-      setAnalysis({
-        image: selectedImage,
-        graph: null,
-        error: "Choose a graph image in the upload area above.",
-        message: "",
-        isLoading: false,
-      });
-      return;
-    }
-
-    if (validationError) {
-      setAnalysis({
-        image: selectedImage,
-        graph: null,
-        error: validationError,
-        message: "",
-        isLoading: false,
-      });
-      return;
-    }
-
     requestControllerRef.current?.abort();
+    const currentRequest = ++requestId.current;
+
+    if (!selectedImage || validationError) {
+      setAnalysis({
+        image: selectedImage,
+        graph: null,
+        error: validationError || "Choose a graph image first.",
+        message: "",
+        isLoading: false,
+      });
+      return;
+    }
 
     const controller = new AbortController();
     requestControllerRef.current = controller;
@@ -86,7 +80,10 @@ export default function GraphImageReader({
 
       const result = await response.json().catch(() => ({}));
 
-      if (controller.signal.aborted) return;
+      // Ignore old responses, even if an abort arrived too late.
+      if (controller.signal.aborted || currentRequest !== requestId.current) {
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(result.error || "Could not read the graph image.");
@@ -112,8 +109,7 @@ export default function GraphImageReader({
         Array.isArray(result.points) &&
         result.points.length >= 2 &&
         result.points.every(
-          (point) =>
-            Number.isFinite(point?.x) && Number.isFinite(point?.y)
+          (point) => Number.isFinite(point?.x) && Number.isFinite(point?.y)
         );
 
       if (!hasValidGraph) {
@@ -128,10 +124,12 @@ export default function GraphImageReader({
         isLoading: false,
       });
 
-      // The dashboard uses this graph in GraphPlot, Sonification, and voice.
+      // The dashboard uses this graph in plotting, sonification, and voice.
       onGraphRead(result);
     } catch (requestError) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || currentRequest !== requestId.current) {
+        return;
+      }
 
       setAnalysis({
         image: selectedImage,
@@ -161,22 +159,36 @@ export default function GraphImageReader({
   }
 
   return (
-    <section aria-labelledby="graph-reader-title">
-      <h2 id="graph-reader-title">Read the selected graph</h2>
-
-      <p>
-        The image is selected in the upload area above. Coordinates read from
-        an image may be approximate.
-      </p>
+    <section
+      aria-labelledby="graph-reader-title"
+      className="w-full space-y-5 rounded-xl border border-[#8B7786]/40 bg-white p-6 text-[#171923] shadow-sm sm:p-8"
+    >
+      <div className="space-y-2">
+        <h2
+          id="graph-reader-title"
+          className="text-xl font-bold tracking-tight sm:text-2xl"
+        >
+          Read the selected graph
+        </h2>
+        <p className="text-sm leading-relaxed text-[#514752]">
+          Analyze your uploaded graph to extract coordinates and explore its
+          data. Coordinates extracted from images may be approximate.
+        </p>
+      </div>
 
       {selectedImage && (
-        <p className="mt-3 break-all text-sm">
-          Selected image: {selectedImage.name}
-        </p>
+        <div className="rounded-lg border border-[#8B7786]/30 bg-[#EEE3E9]/40 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#514752]">
+            Selected image
+          </p>
+          <p className="mt-1 break-all text-sm font-medium text-[#171923]">
+            {selectedImage.name}
+          </p>
+        </div>
       )}
 
-      {validationError && (
-        <p className="mt-3" role="alert">
+      {selectedImage && validationError && (
+        <p role="alert" className="text-sm font-medium text-[#A51D32]">
           {validationError}
         </p>
       )}
@@ -185,31 +197,68 @@ export default function GraphImageReader({
         <button
           type="submit"
           disabled={!selectedImage || Boolean(validationError) || isLoading}
+          aria-busy={isLoading}
+          className="inline-flex min-h-12 items-center justify-center rounded-lg bg-[#774365] px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[#603352] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isLoading ? "Reading graph..." : "Read graph"}
         </button>
       </form>
 
-      {isLoading && <p role="status">Analyzing the image...</p>}
-      {error && <p role="alert">{error}</p>}
-      {message && <p role="status">{message}</p>}
+      {isLoading && (
+        <p role="status" className="text-sm font-medium text-[#514752]">
+          Analyzing the image...
+        </p>
+      )}
+
+      {error && (
+        <p role="alert" className="text-sm font-medium text-[#A51D32]">
+          {error}
+        </p>
+      )}
+
+      {message && (
+        <p role="status" className="text-sm font-medium text-[#514752]">
+          {message}
+        </p>
+      )}
 
       {graph && (
-        <div aria-live="polite">
+        <div className="space-y-5 border-t border-[#8B7786]/30 pt-6">
+          <div className="space-y-2">
+            <h3 className="text-lg font-bold text-[#171923]">
+              Graph analyzed successfully
+            </h3>
+            <p className="text-sm text-[#514752]">
+              Your graph is ready in the graph viewer. You can also save it to
+              your account.
+            </p>
+          </div>
+
           <SaveGraphButton graph={graph} onSaved={handleGraphSaved} />
 
-          <p>
-            Coordinates are estimates. Confidence:{" "}
-            {graph.confidence || "not provided"}.
-          </p>
-
-          {graph.notes && <p>{graph.notes}</p>}
+          <div className="space-y-2 rounded-lg border border-[#8B7786]/30 bg-[#EEE3E9]/30 p-4">
+            <h4 className="text-sm font-semibold text-[#171923]">
+              Analysis details
+            </h4>
+            <p className="text-sm text-[#514752]">
+              Coordinates are estimates. Confidence:{" "}
+              <span className="font-semibold text-[#171923]">
+                {graph.confidence || "not provided"}
+              </span>
+            </p>
+            {graph.notes && (
+              <p className="text-sm leading-relaxed text-[#514752]">
+                {graph.notes}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </section>
   );
 }
 
+/** Validate PNG and JPEG images up to 5 MB. */
 function getImageValidationError(image) {
   if (!image) {
     return "Choose a graph image in the upload area above.";
