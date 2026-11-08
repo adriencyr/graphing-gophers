@@ -1,83 +1,68 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import GraphPlot from "./GraphPlot";
+import SaveGraphButton from "./SaveGraphButton";
 
 const ALLOWED_TYPES = new Set(["image/png", "image/jpeg"]);
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 /**
- * Lets a user upload a graph image, request server-side analysis,
- * and display the returned graph using GraphPlot.
+ * Analyzes the image selected by the dashboard and renders the graph data.
+ * The dashboard owns image selection and preview.
+ *
+ * @param {{ selectedImage: File | null }} props
  */
-export default function GraphImageReader() {
-  const [image, setImage] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState("");
-  const [graph, setGraph] = useState(null);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+export default function GraphImageReader({ selectedImage = null }) {
+  const [analysis, setAnalysis] = useState(null);
 
-  // Create and clean up a temporary URL for the selected image preview.
-  useEffect(() => {
-    if (!image) {
-      setPreviewUrl("");
-      return;
-    }
+  // Keep results associated with the file they came from. When the dashboard
+  // selects a different file, the old result is no longer displayed.
+  const currentAnalysis =
+    analysis?.image === selectedImage ? analysis : null;
 
-    const objectUrl = URL.createObjectURL(image);
-    setPreviewUrl(objectUrl);
-
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [image]);
-
-  function handleImageChange(event) {
-    const selectedImage = event.target.files?.[0] ?? null;
-
-    setImage(null);
-    setGraph(null);
-    setError("");
-    setMessage("");
-
-    if (!selectedImage) return;
-
-    if (!ALLOWED_TYPES.has(selectedImage.type)) {
-      setError("Choose a PNG or JPEG image.");
-      event.target.value = "";
-      return;
-    }
-
-    if (selectedImage.size === 0) {
-      setError("The selected image is empty.");
-      event.target.value = "";
-      return;
-    }
-
-    if (selectedImage.size > MAX_IMAGE_SIZE) {
-      setError("Choose an image that is 5 MB or smaller.");
-      event.target.value = "";
-      return;
-    }
-
-    setImage(selectedImage);
-  }
+  const validationError = getImageValidationError(selectedImage);
+  const error = currentAnalysis?.error || "";
+  const message = currentAnalysis?.message || "";
+  const graph = currentAnalysis?.graph || null;
+  const isLoading = currentAnalysis?.isLoading || false;
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setError("");
-    setMessage("");
-    setGraph(null);
 
-    if (!image) {
-      setError("Choose a graph image first.");
+    if (!selectedImage) {
+      setAnalysis({
+        image: selectedImage,
+        graph: null,
+        error: "Choose a graph image in the upload area above.",
+        message: "",
+        isLoading: false,
+      });
       return;
     }
 
-    setIsLoading(true);
+    if (validationError) {
+      setAnalysis({
+        image: selectedImage,
+        graph: null,
+        error: validationError,
+        message: "",
+        isLoading: false,
+      });
+      return;
+    }
+
+    setAnalysis({
+      image: selectedImage,
+      graph: null,
+      error: "",
+      message: "",
+      isLoading: true,
+    });
 
     try {
       const formData = new FormData();
-      formData.append("image", image);
+      formData.append("image", selectedImage);
 
       const response = await fetch("/api/extract-graph", {
         method: "POST",
@@ -91,9 +76,15 @@ export default function GraphImageReader() {
       }
 
       if (result.status === "unreadable") {
-        setMessage(
-          result.notes || "The graph could not be read. Try a clearer image."
-        );
+        setAnalysis({
+          image: selectedImage,
+          graph: null,
+          error: "",
+          message:
+            result.notes ||
+            "The graph could not be read. Try a clearer image.",
+          isLoading: true,
+        });
         return;
       }
 
@@ -113,53 +104,69 @@ export default function GraphImageReader() {
         throw new Error("The graph reader did not return valid graph data.");
       }
 
-      setGraph(result);
+      setAnalysis({
+        image: selectedImage,
+        graph: result,
+        error: "",
+        message: "",
+        isLoading: true,
+      });
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Something went wrong. Please try again."
-      );
+      setAnalysis({
+        image: selectedImage,
+        graph: null,
+        error:
+          requestError instanceof Error
+            ? requestError.message
+            : "Something went wrong. Please try again.",
+        message: "",
+        isLoading: true,
+      });
     } finally {
-      setIsLoading(false);
+      setAnalysis((previous) =>
+        previous?.image === selectedImage
+          ? { ...previous, isLoading: false }
+          : previous
+      );
     }
+  }
+
+  function handleGraphSaved(graphId) {
+    console.log("Saved graph:", graphId);
+
+    setAnalysis((previous) =>
+      previous?.image === selectedImage
+        ? { ...previous, message: "Graph saved successfully." }
+        : previous
+    );
   }
 
   return (
     <section aria-labelledby="graph-reader-title">
-      <h2 id="graph-reader-title">Read a graph from an image</h2>
+      <h2 id="graph-reader-title">Read the selected graph</h2>
 
       <p>
-        Upload a clear XY graph image. Coordinates read from an image may be
-        approximate.
+        The image is selected in the upload area above. Coordinates read from
+        an image may be approximate.
       </p>
 
+      {selectedImage && (
+        <p className="mt-3 break-all text-sm">
+          Selected image: {selectedImage.name}
+        </p>
+      )}
+
+      {validationError && (
+        <p className="mt-3" role="alert">
+          {validationError}
+        </p>
+      )}
+
       <form onSubmit={handleSubmit}>
-        <label htmlFor="graph-image">
-          Graph image (PNG or JPEG, up to 5 MB)
-        </label>
-
-        <input
-          id="graph-image"
-          type="file"
-          accept="image/png,image/jpeg"
-          onChange={handleImageChange}
-        />
-
-        {previewUrl && (
-          <img
-            src={previewUrl}
-            alt="Preview of the graph image to analyze"
-            style={{
-              display: "block",
-              maxWidth: "100%",
-              maxHeight: 280,
-              marginTop: 16,
-            }}
-          />
-        )}
-
-        <button type="submit" disabled={!image || isLoading}>
+        <button
+          type="submit"
+          disabled={!selectedImage || Boolean(validationError) || isLoading}
+        >
           {isLoading ? "Reading graph..." : "Read graph"}
         </button>
       </form>
@@ -172,9 +179,14 @@ export default function GraphImageReader() {
         <div aria-live="polite">
           <GraphPlot graph={graph} />
 
+          <SaveGraphButton
+            graph={graph}
+            onSaved={handleGraphSaved}
+          />
+
           <p>
-            Coordinate confidence: {graph.confidence}. Values may be
-            approximate.
+            Coordinates are estimates. Confidence:{" "}
+            {graph.confidence || "not provided"}.
           </p>
 
           {graph.notes && <p>{graph.notes}</p>}
@@ -182,4 +194,27 @@ export default function GraphImageReader() {
       )}
     </section>
   );
+}
+
+function getImageValidationError(image) {
+  if (!image) {
+    return "Choose a graph image in the upload area above.";
+  }
+
+  const hasSupportedType = ALLOWED_TYPES.has(image.type);
+  const hasSupportedExtension = /\.(png|jpe?g)$/i.test(image.name);
+
+  if (!hasSupportedType || !hasSupportedExtension) {
+    return "Choose a PNG or JPEG image.";
+  }
+
+  if (image.size === 0) {
+    return "The selected image is empty.";
+  }
+
+  if (image.size > MAX_IMAGE_SIZE) {
+    return "Choose an image that is 5 MB or smaller.";
+  }
+
+  return "";
 }
