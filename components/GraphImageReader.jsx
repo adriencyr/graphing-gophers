@@ -1,99 +1,103 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import GraphPlot from "./GraphPlot";
+import { useEffect, useRef, useState } from "react";
+import SaveGraphButton from "./SaveGraphButton";
 
 const ALLOWED_TYPES = new Set(["image/png", "image/jpeg"]);
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 /**
- * Lets a user upload a graph image, request server-side analysis,
- * and display the returned graph using GraphPlot.
+ * Analyzes an image selected by the dashboard and sends extracted graph data
+ * to the shared viewer (GraphPlot, sonification, and GraphGuide).
  */
-export default function GraphImageReader() {
-  const [image, setImage] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState("");
-  const [graph, setGraph] = useState(null);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+export default function GraphImageReader({
+  selectedImage = null,
+  onGraphRead = () => {},
+  onGraphSaved = () => {},
+}) {
+  const [analysis, setAnalysis] = useState(null);
+  const requestId = useRef(0);
+  const requestControllerRef = useRef(null);
 
-  // Create and clean up a temporary URL for the selected image preview.
+  // Invalidate and cancel an in-flight analysis when the file changes
+  // or the reader unmounts. Parent state updates are handled elsewhere.
   useEffect(() => {
-    if (!image) {
-      setPreviewUrl("");
-      return;
-    }
+    return () => {
+      requestId.current += 1;
+      requestControllerRef.current?.abort();
+    };
+  }, [selectedImage]);
 
-    const objectUrl = URL.createObjectURL(image);
-    setPreviewUrl(objectUrl);
+  // Never display results for an image that is no longer selected.
+  const currentAnalysis =
+    analysis?.image === selectedImage ? analysis : null;
 
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [image]);
-
-  function handleImageChange(event) {
-    const selectedImage = event.target.files?.[0] ?? null;
-
-    setImage(null);
-    setGraph(null);
-    setError("");
-    setMessage("");
-
-    if (!selectedImage) return;
-
-    if (!ALLOWED_TYPES.has(selectedImage.type)) {
-      setError("Choose a PNG or JPEG image.");
-      event.target.value = "";
-      return;
-    }
-
-    if (selectedImage.size === 0) {
-      setError("The selected image is empty.");
-      event.target.value = "";
-      return;
-    }
-
-    if (selectedImage.size > MAX_IMAGE_SIZE) {
-      setError("Choose an image that is 5 MB or smaller.");
-      event.target.value = "";
-      return;
-    }
-
-    setImage(selectedImage);
-  }
+  const validationError = getImageValidationError(selectedImage);
+  const graph = currentAnalysis?.graph || null;
+  const error = currentAnalysis?.error || "";
+  const message = currentAnalysis?.message || "";
+  const isLoading = currentAnalysis?.isLoading || false;
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setError("");
-    setMessage("");
-    setGraph(null);
 
-    if (!image) {
-      setError("Choose a graph image first.");
+    // The shared viewer should not retain an old graph during a new analysis.
+    onGraphRead(null);
+    requestControllerRef.current?.abort();
+    const currentRequest = ++requestId.current;
+
+    if (!selectedImage || validationError) {
+      setAnalysis({
+        image: selectedImage,
+        graph: null,
+        error: validationError || "Choose a graph image first.",
+        message: "",
+        isLoading: false,
+      });
       return;
     }
 
-    setIsLoading(true);
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+
+    setAnalysis({
+      image: selectedImage,
+      graph: null,
+      error: "",
+      message: "",
+      isLoading: true,
+    });
 
     try {
       const formData = new FormData();
-      formData.append("image", image);
+      formData.append("image", selectedImage);
 
       const response = await fetch("/api/extract-graph", {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
+
+      // Ignore old responses, even if an abort arrived too late.
+      if (controller.signal.aborted || currentRequest !== requestId.current) {
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(result.error || "Could not read the graph image.");
       }
 
       if (result.status === "unreadable") {
-        setMessage(
-          result.notes || "The graph could not be read. Try a clearer image."
-        );
+        setAnalysis({
+          image: selectedImage,
+          graph: null,
+          error: "",
+          message:
+            result.notes || "The graph could not be read. Try a clearer image.",
+          isLoading: false,
+        });
         return;
       }
 
@@ -105,81 +109,175 @@ export default function GraphImageReader() {
         Array.isArray(result.points) &&
         result.points.length >= 2 &&
         result.points.every(
-          (point) =>
-            Number.isFinite(point?.x) && Number.isFinite(point?.y)
+          (point) => Number.isFinite(point?.x) && Number.isFinite(point?.y)
         );
 
       if (!hasValidGraph) {
         throw new Error("The graph reader did not return valid graph data.");
       }
 
-      setGraph(result);
+      setAnalysis({
+        image: selectedImage,
+        graph: result,
+        error: "",
+        message: "",
+        isLoading: false,
+      });
+
+      // The dashboard uses this graph in plotting, sonification, and voice.
+      onGraphRead(result);
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Something went wrong. Please try again."
-      );
+      if (controller.signal.aborted || currentRequest !== requestId.current) {
+        return;
+      }
+
+      setAnalysis({
+        image: selectedImage,
+        graph: null,
+        error:
+          requestError instanceof Error
+            ? requestError.message
+            : "Something went wrong. Please try again.",
+        message: "",
+        isLoading: false,
+      });
     } finally {
-      setIsLoading(false);
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+      }
     }
   }
 
-  return (
-    <section aria-labelledby="graph-reader-title">
-      <h2 id="graph-reader-title">Read a graph from an image</h2>
+  function handleGraphSaved(graphId) {
+    setAnalysis((previous) =>
+      previous?.image === selectedImage
+        ? { ...previous, message: "Graph saved successfully." }
+        : previous
+    );
 
-      <p>
-        Upload a clear XY graph image. Coordinates read from an image may be
-        approximate.
-      </p>
+    onGraphSaved(graphId);
+  }
+
+  return (
+    <section
+      aria-labelledby="graph-reader-title"
+      className="w-full space-y-5 rounded-xl border border-[#8B7786]/40 bg-white p-6 text-[#171923] shadow-sm sm:p-8"
+    >
+      <div className="space-y-2">
+        <h2
+          id="graph-reader-title"
+          className="text-xl font-bold tracking-tight sm:text-2xl"
+        >
+          Read the selected graph
+        </h2>
+        <p className="text-sm leading-relaxed text-[#514752]">
+          Analyze your uploaded graph to extract coordinates and explore its
+          data. Coordinates extracted from images may be approximate.
+        </p>
+      </div>
+
+      {selectedImage && (
+        <div className="rounded-lg border border-[#8B7786]/30 bg-[#EEE3E9]/40 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#514752]">
+            Selected image
+          </p>
+          <p className="mt-1 break-all text-sm font-medium text-[#171923]">
+            {selectedImage.name}
+          </p>
+        </div>
+      )}
+
+      {selectedImage && validationError && (
+        <p role="alert" className="text-sm font-medium text-[#A51D32]">
+          {validationError}
+        </p>
+      )}
 
       <form onSubmit={handleSubmit}>
-        <label htmlFor="graph-image">
-          Graph image (PNG or JPEG, up to 5 MB)
-        </label>
-
-        <input
-          id="graph-image"
-          type="file"
-          accept="image/png,image/jpeg"
-          onChange={handleImageChange}
-        />
-
-        {previewUrl && (
-          <img
-            src={previewUrl}
-            alt="Preview of the graph image to analyze"
-            style={{
-              display: "block",
-              maxWidth: "100%",
-              maxHeight: 280,
-              marginTop: 16,
-            }}
-          />
-        )}
-
-        <button type="submit" disabled={!image || isLoading}>
+        <button
+          type="submit"
+          disabled={!selectedImage || Boolean(validationError) || isLoading}
+          aria-busy={isLoading}
+          className="inline-flex min-h-12 items-center justify-center rounded-lg bg-[#774365] px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[#603352] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#774365] disabled:cursor-not-allowed disabled:opacity-50"
+        >
           {isLoading ? "Reading graph..." : "Read graph"}
         </button>
       </form>
 
-      {isLoading && <p role="status">Analyzing the image...</p>}
-      {error && <p role="alert">{error}</p>}
-      {message && <p role="status">{message}</p>}
+      {isLoading && (
+        <p role="status" className="text-sm font-medium text-[#514752]">
+          Analyzing the image...
+        </p>
+      )}
+
+      {error && (
+        <p role="alert" className="text-sm font-medium text-[#A51D32]">
+          {error}
+        </p>
+      )}
+
+      {message && (
+        <p role="status" className="text-sm font-medium text-[#514752]">
+          {message}
+        </p>
+      )}
 
       {graph && (
-        <div aria-live="polite">
-          <GraphPlot graph={graph} />
+        <div className="space-y-5 border-t border-[#8B7786]/30 pt-6">
+          <div className="space-y-2">
+            <h3 className="text-lg font-bold text-[#171923]">
+              Graph analyzed successfully
+            </h3>
+            <p className="text-sm text-[#514752]">
+              Your graph is ready in the graph viewer. You can also save it to
+              your account.
+            </p>
+          </div>
 
-          <p>
-            Coordinate confidence: {graph.confidence}. Values may be
-            approximate.
-          </p>
+          <SaveGraphButton graph={graph} onSaved={handleGraphSaved} />
 
-          {graph.notes && <p>{graph.notes}</p>}
+          <div className="space-y-2 rounded-lg border border-[#8B7786]/30 bg-[#EEE3E9]/30 p-4">
+            <h4 className="text-sm font-semibold text-[#171923]">
+              Analysis details
+            </h4>
+            <p className="text-sm text-[#514752]">
+              Coordinates are estimates. Confidence:{" "}
+              <span className="font-semibold text-[#171923]">
+                {graph.confidence || "not provided"}
+              </span>
+            </p>
+            {graph.notes && (
+              <p className="text-sm leading-relaxed text-[#514752]">
+                {graph.notes}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </section>
   );
+}
+
+/** Validate PNG and JPEG images up to 5 MB. */
+function getImageValidationError(image) {
+  if (!image) {
+    return "Choose a graph image in the upload area above.";
+  }
+
+  const hasSupportedType = ALLOWED_TYPES.has(image.type);
+  const hasSupportedExtension = /\.(png|jpe?g)$/i.test(image.name);
+
+  if (!hasSupportedType || !hasSupportedExtension) {
+    return "Choose a PNG or JPEG image.";
+  }
+
+  if (image.size === 0) {
+    return "The selected image is empty.";
+  }
+
+  if (image.size > MAX_IMAGE_SIZE) {
+    return "Choose an image that is 5 MB or smaller.";
+  }
+
+  return "";
 }

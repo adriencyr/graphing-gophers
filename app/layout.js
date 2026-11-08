@@ -1,6 +1,7 @@
 
 import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
+import NavbarAuth from "@/components/NavbarAuth";
 import "./globals.css";
 
 // Keep the existing fonts
@@ -40,19 +41,20 @@ export default function RootLayout({ children }) {
         <div className="flex min-h-screen flex-col">
 
           {/* Shared header */}
-          <header
-            className="relative z-20 shrink-0 border-b border-white/20
-              bg-[#171923] text-white"
-          >
-            <div className="mx-auto flex max-w-7xl items-center px-6 py-5 sm:px-10">
+          <header className="relative z-20 shrink-0 border-b border-white/20 bg-[#171923] text-white">
+            <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-6 py-5 sm:px-10">
+              {/* Logo */}
               <Link
                 href="/"
-                className="text-xl font-bold tracking-tight"
+                className="shrink-0 text-xl font-bold tracking-tight"
                 aria-label="Graphing Gophers, homepage"
               >
                 Graphing Gophers
                 <span className="text-[#F0C8DF]">.</span>
               </Link>
+
+              {/* Navigation */}
+              <NavbarAuth />
             </div>
           </header>
 

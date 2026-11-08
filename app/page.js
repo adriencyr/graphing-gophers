@@ -1,4 +1,5 @@
 import GoogleSignIn from "../components/GoogleSignIn";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -43,12 +44,12 @@ export default function Home() {
 
           {/* Navigation */}
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              className="min-h-12 rounded-lg border border-white bg-white px-5 py-3 text-sm font-semibold text-[#171923] transition-colors hover:bg-[#F3E7EE] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#F0C8DF]"
+            <Link
+              href="/dashboard"
+              className="inline-flex min-h-12 items-center justify-center rounded-lg border border-white bg-white px-5 py-3 text-sm font-semibold text-[#171923] transition-colors hover:bg-[#F3E7EE] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#F0C8DF]"
             >
               Continue as Guest
-            </button>
+            </Link>
 
             <div className="min-w-0 sm:flex-1">
               <GoogleSignIn />

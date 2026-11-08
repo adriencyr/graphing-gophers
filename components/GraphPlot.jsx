@@ -1,15 +1,29 @@
 /**
- * Format an axis tick to three significant digits.
+ * Format an axis tick using the precision implied by its interval.
  *
  * @param {number} value - Coordinate value for the tick.
+ * @param {number} step - Distance between adjacent ticks.
  * @returns {string} Formatted tick label.
  */
-function formatTick(value) {
-  return String(Number(value.toPrecision(3)));
+function formatTick(value, step) {
+  // Avoid displaying "-0" when floating-point math produces a tiny value.
+  const safeValue = Math.abs(value) < step * 1e-10 ? 0 : value;
+
+  // Use scientific notation for very small intervals or very large values.
+  if (Math.abs(step) < 1e-6 || Math.abs(safeValue) >= 1e9) {
+    return Number(safeValue.toPrecision(3)).toString();
+  }
+
+  const decimalPlaces = Math.min(
+    10,
+    Math.max(0, Math.ceil(-Math.log10(step)))
+  );
+
+  return Number(safeValue.toFixed(decimalPlaces)).toString();
 }
 
 /**
- * Find an axis range that includes all values and leaves a little padding.
+ * Find a padded range that includes all values.
  *
  * @param {number[]} values - Coordinate values for one axis.
  * @returns {[number, number]} Padded minimum and maximum.
@@ -29,12 +43,61 @@ function getRange(values) {
 }
 
 /**
+ * Generate axis ticks at readable intervals such as 1, 2, or 5
+ * multiplied by a power of ten.
+ *
+ * @param {number} min - Minimum visible coordinate.
+ * @param {number} max - Maximum visible coordinate.
+ * @param {number} targetCount - Approximate number of desired ticks.
+ * @returns {{ values: number[], step: number }} Tick values and interval.
+ */
+function makeTicks(min, max, targetCount = 6) {
+  const rawStep = (max - min) / Math.max(1, targetCount - 1);
+
+  if (!Number.isFinite(rawStep) || rawStep <= 0) {
+    return { values: [min], step: 1 };
+  }
+
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalizedStep = rawStep / magnitude;
+
+  const niceMultiplier =
+    normalizedStep <= 1
+      ? 1
+      : normalizedStep <= 2
+        ? 2
+        : normalizedStep <= 5
+          ? 5
+          : 10;
+
+  const step = niceMultiplier * magnitude;
+  const firstTick = Math.ceil(min / step - 1e-10) * step;
+  const values = [];
+
+  // Prevent an unexpectedly dense range from creating too many ticks.
+  for (let index = 0; index < 100; index += 1) {
+    const tick = firstTick + index * step;
+
+    if (tick > max + step * 1e-10) break;
+
+    values.push(Number(tick.toPrecision(14)));
+  }
+
+  return { values, step };
+}
+
+/**
  * Render an XY Cartesian graph as a responsive SVG.
  *
- * Points are sorted by x-coordinate and joined to draw the graph curve.
+ * The valid points are sorted by x-coordinate and joined with straight
+ * segments. This matches linear interpolation used by graph facts and
+ * sonification.
  *
  * @param {Object} props
  * @param {Object} props.graph - Graph data.
+ * @param {boolean} [props.showPoints=true] - Show individual point markers.
+ * @param {Array<Array<{x: number, y: number}>>} [props.graph.segments]
+ *   Optional separate curves, used to preserve equation domain gaps.
  * @param {string} [props.graph.title] - Title shown above the graph.
  * @param {string} [props.graph.xLabel] - Horizontal-axis label.
  * @param {string} [props.graph.yLabel] - Vertical-axis label.
@@ -54,7 +117,7 @@ function getRange(values) {
  *   }}
  * />
  */
-export default function GraphPlot({ graph = {} }) {
+export default function GraphPlot({ graph = {}, showPoints = true }) {
   // Keep only points with valid numeric coordinates.
   const points = Array.isArray(graph.points)
     ? graph.points.filter(
@@ -75,37 +138,40 @@ export default function GraphPlot({ graph = {} }) {
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
 
-  // Calculate padded coordinate ranges from the provided points.
+  // Calculate padded coordinate ranges from the supplied points.
   const [minX, maxX] = getRange(points.map((point) => point.x));
   const [minY, maxY] = getRange(points.map((point) => point.y));
 
-  // Convert graph coordinates into pixel positions in the SVG.
+  // Convert graph coordinates to pixel positions in the SVG.
   const scaleX = (x) =>
     margin.left + ((x - minX) / (maxX - minX)) * plotWidth;
 
   const scaleY = (y) =>
     margin.top + ((maxY - y) / (maxY - minY)) * plotHeight;
 
-  // Generate five evenly spaced tick values for an axis.
-  const makeTicks = (min, max) =>
-    Array.from({ length: 5 }, (_, index) => min + ((max - min) * index) / 4);
+  // Generate readable tick intervals for both axes.
+  const xTickData = makeTicks(minX, maxX);
+  const yTickData = makeTicks(minY, maxY);
 
-  const xTicks = makeTicks(minX, maxX);
-  const yTicks = makeTicks(minY, maxY);
-
-  // Sort by x so the curve is drawn from left to right.
+  // Sort points from left to right before drawing the graph.
   const orderedPoints = [...points].sort((a, b) => a.x - b.x);
 
-  // Convert all points to SVG coordinate strings for the polyline.
-  const plottedPoints = orderedPoints
-    .map((point) => `${scaleX(point.x)},${scaleY(point.y)}`)
-    .join(" ");
+  // Equation graphs can contain gaps; image-based graphs use one curve.
+  const segments = Array.isArray(graph.segments)
+    ? graph.segments.filter(Array.isArray).map((segment) => segment.filter(
+        (point) => Number.isFinite(point?.x) && Number.isFinite(point?.y),
+      ))
+    : [orderedPoints];
 
-  // Put the axes at zero when zero is in view; otherwise use the plot edge.
-  const xAxisY = minY <= 0 && maxY >= 0 ? scaleY(0) : scaleY(minY);
-  const yAxisX = minX <= 0 && maxX >= 0 ? scaleX(0) : scaleX(minX);
+  // Put axes at zero when zero is visible; otherwise use a plot edge.
+  const xAxisY =
+    minY <= 0 && maxY >= 0 ? scaleY(0) : scaleY(minY);
+  const yAxisX =
+    minX <= 0 && maxX >= 0 ? scaleX(0) : scaleX(minX);
 
   const title = graph.title || "Graph";
+  const xLabel = graph.xLabel || "x";
+  const yLabel = graph.yLabel || "y";
 
   return (
     <figure style={{ width: "100%", margin: 0 }}>
@@ -121,8 +187,8 @@ export default function GraphPlot({ graph = {} }) {
       >
         <rect width={width} height={height} fill="white" />
 
-        {/* Vertical grid lines and x-axis tick labels. */}
-        {xTicks.map((tick, index) => {
+        {/* Vertical grid lines and formatted x-axis tick labels. */}
+        {xTickData.values.map((tick, index) => {
           const x = scaleX(tick);
 
           return (
@@ -141,14 +207,14 @@ export default function GraphPlot({ graph = {} }) {
                 fill="#374151"
                 fontSize="12"
               >
-                {formatTick(tick)}
+                {formatTick(tick, xTickData.step)}
               </text>
             </g>
           );
         })}
 
-        {/* Horizontal grid lines and y-axis tick labels. */}
-        {yTicks.map((tick, index) => {
+        {/* Horizontal grid lines and formatted y-axis tick labels. */}
+        {yTickData.values.map((tick, index) => {
           const y = scaleY(tick);
 
           return (
@@ -167,7 +233,7 @@ export default function GraphPlot({ graph = {} }) {
                 fill="#374151"
                 fontSize="12"
               >
-                {formatTick(tick)}
+                {formatTick(tick, yTickData.step)}
               </text>
             </g>
           );
@@ -189,20 +255,22 @@ export default function GraphPlot({ graph = {} }) {
           />
         </g>
 
-        {/* Join every point to draw the Cartesian graph curve. */}
-        {orderedPoints.length > 1 && (
+        {/* Draw each continuous section separately, preserving domain gaps. */}
+        {segments.filter((segment) => segment.length > 1).map((segment, i) => (
           <polyline
-            points={plottedPoints}
+            key={i}
+            points={segment.map((point) =>
+              `${scaleX(point.x)},${scaleY(point.y)}`).join(" ")}
             fill="none"
             stroke="#2563eb"
             strokeWidth="3"
             strokeLinejoin="round"
             strokeLinecap="round"
           />
-        )}
+        ))}
 
-        {/* Draw a marker at every coordinate. */}
-        {orderedPoints.map((point, index) => (
+        {/* Draw a marker at every supplied coordinate. */}
+        {showPoints && orderedPoints.map((point, index) => (
           <circle
             key={`${point.x}-${point.y}-${index}`}
             cx={scaleX(point.x)}
@@ -221,7 +289,7 @@ export default function GraphPlot({ graph = {} }) {
           textAnchor="middle"
           fill="#111827"
         >
-          {graph.xLabel || "x"}
+          {xLabel}
         </text>
 
         <text
@@ -231,7 +299,7 @@ export default function GraphPlot({ graph = {} }) {
           fill="#111827"
           transform={`rotate(-90 18 ${margin.top + plotHeight / 2})`}
         >
-          {graph.yLabel || "y"}
+          {yLabel}
         </text>
       </svg>
     </figure>
