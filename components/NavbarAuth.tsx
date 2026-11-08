@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useUser } from "@auth0/nextjs-auth0/client";
 
 export default function NavbarAuth() {
@@ -12,12 +11,6 @@ export default function NavbarAuth() {
     "hover:bg-[#603352] focus-visible:outline-4 " +
     "focus-visible:outline-offset-4 focus-visible:outline-[#F0C8DF]";
 
-  const dashboardStyle =
-    "inline-flex min-h-11 items-center justify-center rounded-lg " +
-    "border border-white/40 px-4 py-2 text-sm font-semibold text-white " +
-    "hover:bg-white/10 focus-visible:outline-4 " +
-    "focus-visible:outline-offset-4 focus-visible:outline-[#F0C8DF]";
-
   return (
     <nav aria-label="Account navigation" className="flex flex-wrap items-center gap-3">
       {!isLoading && user && (
@@ -25,10 +18,6 @@ export default function NavbarAuth() {
           Hello, {user.given_name || user.name || "there"}!
         </span>
       )}
-
-      <Link href="/dashboard" className={dashboardStyle}>
-        Dashboard
-      </Link>
 
       {isLoading ? (
         <span className="text-sm text-white/70" role="status">
