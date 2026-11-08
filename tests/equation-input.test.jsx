@@ -16,7 +16,7 @@ it("plots the dashboard input when submitted using Enter", async () => {
   expect(screen.getByRole("img", {
     name: "y = x^2 + 3 with 201 plotted points",
   })).toBeInTheDocument();
-  expect(screen.getByRole("status")).toHaveTextContent("-10 ≤ x ≤ 10");
+  expect(screen.getByText(/Graph created for/)).toHaveTextContent("-10 ≤ x ≤ 10");
 });
 
 it("updates the requested range and replaces the previous plot", async () => {
@@ -36,7 +36,7 @@ it("updates the requested range and replaces the previous plot", async () => {
   expect(screen.getByRole("img")).toHaveAccessibleName(
     "y = sin(x) with 201 plotted points",
   );
-  expect(screen.getByRole("status")).toHaveTextContent("0 ≤ x ≤ 6.28");
+  expect(screen.getByText(/Graph created for/)).toHaveTextContent("0 ≤ x ≤ 6.28");
 });
 
 it("announces errors and allows correction without stale plots", async () => {
@@ -76,7 +76,7 @@ it("draws distinct branches without a line across the gap", async () => {
   await user.click(screen.getByRole("button", { name: "Create Graph" }));
   expect(container.querySelectorAll("polyline")).toHaveLength(2);
   expect(container.querySelectorAll("circle")).toHaveLength(0);
-  expect(screen.getByRole("status")).toHaveTextContent("leave gaps");
+  expect(screen.getByText(/Graph created for/)).toHaveTextContent("leave gaps");
 });
 
 it("preserves image graph lines and markers by default", () => {
