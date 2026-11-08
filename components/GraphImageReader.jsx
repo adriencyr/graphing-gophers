@@ -1,23 +1,35 @@
 "use client";
 
-import { useRef, useState } from "react";
-import GraphPlot from "./GraphPlot";
+import { useEffect, useRef, useState } from "react";
 import SaveGraphButton from "./SaveGraphButton";
 
 const ALLOWED_TYPES = new Set(["image/png", "image/jpeg"]);
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 /**
- * Analyzes the image selected by the dashboard and renders
- * the extracted graph.
- *
- * The dashboard handles image selection and preview.
+ * Analyzes the image selected by the dashboard and sends
+ * readable graph data to the dashboard's shared viewer.
  */
-export default function GraphImageReader({ selectedImage = null }) {
+export default function GraphImageReader({
+  selectedImage = null,
+  onGraphRead = () => {},
+  onGraphSaved = () => {},
+}) {
   const [analysis, setAnalysis] = useState(null);
-  const requestId = useRef(0);
 
-  // Only display analysis for the currently selected image.
+  const requestId = useRef(0);
+  const requestControllerRef = useRef(null);
+
+  // Cancel pending requests when the image changes or
+  // the component unmounts.
+  useEffect(() => {
+    return () => {
+      requestId.current += 1;
+      requestControllerRef.current?.abort();
+    };
+  }, [selectedImage]);
+
+  // Only display results for the currently selected image.
   const currentAnalysis =
     analysis?.image === selectedImage ? analysis : null;
 
@@ -30,6 +42,9 @@ export default function GraphImageReader({ selectedImage = null }) {
   async function handleSubmit(event) {
     event.preventDefault();
 
+    // Clear the dashboard's previous graph.
+    onGraphRead(null);
+
     if (!selectedImage || validationError) {
       setAnalysis({
         image: selectedImage,
@@ -41,7 +56,13 @@ export default function GraphImageReader({ selectedImage = null }) {
       return;
     }
 
+    // Invalidate and cancel any previous request.
     const currentRequest = ++requestId.current;
+
+    requestControllerRef.current?.abort();
+
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
 
     setAnalysis({
       image: selectedImage,
@@ -58,12 +79,18 @@ export default function GraphImageReader({ selectedImage = null }) {
       const response = await fetch("/api/extract-graph", {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
 
-      // Ignore responses from older requests.
-      if (currentRequest !== requestId.current) return;
+      // Ignore cancelled or outdated responses.
+      if (
+        controller.signal.aborted ||
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -110,8 +137,16 @@ export default function GraphImageReader({ selectedImage = null }) {
         message: "",
         isLoading: false,
       });
+
+      // Send extracted data to the shared graph viewer.
+      onGraphRead(result);
     } catch (requestError) {
-      if (currentRequest !== requestId.current) return;
+      if (
+        controller.signal.aborted ||
+        currentRequest !== requestId.current
+      ) {
+        return;
+      }
 
       setAnalysis({
         image: selectedImage,
@@ -123,6 +158,10 @@ export default function GraphImageReader({ selectedImage = null }) {
         message: "",
         isLoading: false,
       });
+    } finally {
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+      }
     }
   }
 
@@ -135,6 +174,8 @@ export default function GraphImageReader({ selectedImage = null }) {
           }
         : previous
     );
+
+    onGraphSaved(graphId);
   }
 
   return (
@@ -152,9 +193,9 @@ export default function GraphImageReader({ selectedImage = null }) {
         </h2>
 
         <p className="text-sm leading-relaxed text-[#514752]">
-          Analyze your uploaded graph to extract coordinates and
-          explore its data. Coordinates extracted from images
-          may be approximate.
+          Analyze your uploaded graph to extract coordinates
+          and explore its data. Coordinates extracted from
+          images may be approximate.
         </p>
       </div>
 
@@ -238,29 +279,25 @@ export default function GraphImageReader({ selectedImage = null }) {
         </p>
       )}
 
-      {/* Extracted graph */}
+      {/* Successful analysis */}
       {graph && (
-        <div className="space-y-6 border-t border-[#8B7786]/30 pt-6">
+        <div className="space-y-5 border-t border-[#8B7786]/30 pt-6">
           <div className="space-y-2">
             <h3 className="text-lg font-bold text-[#171923]">
-              Graph analysis
+              Graph analyzed successfully
             </h3>
 
             <p className="text-sm text-[#514752]">
-              Review the extracted graph below.
+              Your graph is ready in the graph viewer.
+              You can also save it to your account.
             </p>
           </div>
 
-          {/* Graph visualization */}
-          <GraphPlot graph={graph} />
-
-          {/* Save graph */}
-          <div className="flex flex-wrap items-center gap-3">
-            <SaveGraphButton
-              graph={graph}
-              onSaved={handleGraphSaved}
-            />
-          </div>
+          {/* Only one Save Graph button */}
+          <SaveGraphButton
+            graph={graph}
+            onSaved={handleGraphSaved}
+          />
 
           {/* Analysis details */}
           <div className="space-y-2 rounded-lg border border-[#8B7786]/30 bg-[#EEE3E9]/30 p-4">
@@ -288,10 +325,8 @@ export default function GraphImageReader({ selectedImage = null }) {
 }
 
 /**
- * Validates an uploaded graph image.
- *
- * Accepted formats: PNG and JPEG.
- * Maximum size: 5 MB.
+ * Validate uploaded graph images.
+ * Supports PNG/JPEG up to 5 MB.
  */
 function getImageValidationError(image) {
   if (!image) {
@@ -299,9 +334,8 @@ function getImageValidationError(image) {
   }
 
   const hasSupportedType = ALLOWED_TYPES.has(image.type);
-  const hasSupportedExtension = /\.(png|jpe?g)$/i.test(
-    image.name
-  );
+  const hasSupportedExtension =
+    /\.(png|jpe?g)$/i.test(image.name);
 
   if (!hasSupportedType || !hasSupportedExtension) {
     return "Choose a PNG or JPEG image.";

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import GraphImageReader from "../../components/GraphImageReader";
+import GraphPlot from "../../components/GraphPlot";
 import EquationGraph from "../../components/EquationGraph";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -14,9 +15,66 @@ export default function Dashboard() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [fileError, setFileError] = useState("");
 
+  const [savedGraphs, setSavedGraphs] = useState([]);
+  const [graphsLoading, setGraphsLoading] = useState(true);
+  const [graphsError, setGraphsError] = useState("");
+  const [graphSelectionError, setGraphSelectionError] = useState("");
+  const [activeGraph, setActiveGraph] = useState(null);
+  const [selectedGraphId, setSelectedGraphId] = useState(null);
+
   const dialogRef = useRef(null);
   const previousFocusRef = useRef(null);
   const objectUrlRef = useRef(null);
+  const uploadInputRef = useRef(null);
+
+  // Used when refreshing the list after a graph is saved.
+  const loadSavedGraphs = useCallback(async () => {
+    setGraphsLoading(true);
+    setGraphsError("");
+
+    try {
+      const graphs = await fetchSavedGraphsFromApi();
+      setSavedGraphs(graphs);
+    } catch (error) {
+      setGraphsError(
+        error instanceof Error
+          ? error.message
+          : "Could not load saved graphs."
+      );
+    } finally {
+      setGraphsLoading(false);
+    }
+  }, []);
+
+  // Load saved graphs when the dashboard first appears.
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchSavedGraphsFromApi()
+      .then((graphs) => {
+        if (!cancelled) {
+          setSavedGraphs(graphs);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setGraphsError(
+            error instanceof Error
+              ? error.message
+              : "Could not load saved graphs."
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setGraphsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Release temporary image memory when leaving the page.
   useEffect(() => {
@@ -44,6 +102,9 @@ export default function Dashboard() {
     setSelectedFile("");
     setSelectedImage(null);
     setPreviewUrl("");
+    setActiveGraph(null);
+    setSelectedGraphId(null);
+    setGraphSelectionError("");
     event.target.value = "";
 
     if (objectUrlRef.current) {
@@ -52,11 +113,14 @@ export default function Dashboard() {
     }
   }
 
-  // Validate, store, and preview the selected graph image.
   function handleFileChange(event) {
     const file = event.target.files?.[0];
 
     if (!file) return;
+
+    setActiveGraph(null);
+    setSelectedGraphId(null);
+    setGraphSelectionError("");
 
     const validType = ["image/png", "image/jpeg"].includes(file.type);
     const validExtension = /\.(png|jpe?g)$/i.test(file.name);
@@ -92,8 +156,60 @@ export default function Dashboard() {
     setPreviewUrl(newUrl);
     setFileError("");
 
-    // Open the accessible image preview after selection.
     openPreview();
+  }
+
+  function handleGraphRead(graph) {
+    setActiveGraph(graph);
+    setSelectedGraphId(null);
+    setGraphSelectionError("");
+  }
+
+  function handleSavedGraphSelect(savedGraph) {
+    const graphData = getSavedGraphData(savedGraph);
+
+    if (!graphData || !Array.isArray(graphData.points)) {
+      setGraphSelectionError(
+        "This saved item does not contain readable graph data."
+      );
+      return;
+    }
+
+    setGraphSelectionError("");
+    setActiveGraph({
+      ...graphData,
+      title: savedGraph.title || graphData.title || "Saved graph",
+    });
+    setSelectedGraphId(savedGraph.id);
+
+    // Clear the upload selection so the saved graph is the active viewer graph.
+    if (dialogRef.current?.open) {
+      dialogRef.current.close();
+    }
+
+    setSelectedImage(null);
+    setSelectedFile("");
+    setFileError("");
+    setPreviewUrl("");
+
+    if (uploadInputRef.current) {
+      uploadInputRef.current.value = "";
+    }
+
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+
+    setHistoryOpen(false);
+  }
+
+  function handleGraphSaved(graphId) {
+    if (graphId) {
+      setSelectedGraphId(graphId);
+    }
+
+    loadSavedGraphs();
   }
 
   return (
@@ -112,7 +228,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid min-h-[calc(100vh-65px)] lg:grid-cols-[230px_minmax(0,1fr)]">
-        {/* History sidebar */}
+        {/* Saved graph list */}
         <aside
           id="graph-history"
           aria-labelledby="history-heading"
@@ -130,11 +246,56 @@ export default function Dashboard() {
           />
 
           <div className="mt-8 border-t border-[#D8C6D1] pt-7">
-            <p className="text-sm font-semibold">No saved graphs yet</p>
+            {graphsLoading ? (
+              <p role="status" className="text-sm">
+                Loading saved graphs...
+              </p>
+            ) : graphsError ? (
+              <p role="alert" className="text-sm font-semibold text-[#A51D32]">
+                {graphsError}
+              </p>
+            ) : savedGraphs.length === 0 ? (
+              <>
+                <p className="text-sm font-semibold">No saved graphs yet</p>
+                <p className="mt-2 text-sm leading-6 text-[#514752]">
+                  Your saved graphs will appear here.
+                </p>
+              </>
+            ) : (
+              <ul className="max-h-[60vh] space-y-3 overflow-y-auto">
+                {savedGraphs.map((savedGraph) => (
+                  <li key={savedGraph.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleSavedGraphSelect(savedGraph)}
+                      aria-pressed={selectedGraphId === savedGraph.id}
+                      className="min-h-12 w-full rounded-lg border border-[#8B7786] bg-white p-3 text-left hover:bg-[#F2E4EC] focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#774365]"
+                    >
+                      <span className="block break-words text-sm font-semibold">
+                        {savedGraph.title ||
+                          getSavedGraphData(savedGraph)?.title ||
+                          "Untitled graph"}
+                      </span>
 
-            <p className="mt-2 text-sm leading-6 text-[#514752]">
-              Your saved graphs will appear here.
-            </p>
+                      {formatSavedDate(savedGraph.created_at) && (
+                        <span className="mt-1 block text-xs text-[#514752]">
+                          {formatSavedDate(savedGraph.created_at)}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {graphSelectionError && (
+              <p
+                role="alert"
+                className="mt-3 text-sm font-semibold text-[#A51D32]"
+              >
+                {graphSelectionError}
+              </p>
+            )}
           </div>
         </aside>
 
@@ -154,6 +315,22 @@ export default function Dashboard() {
             <p className="mt-3 text-base leading-7 text-[#443B46]">
               Upload a graph image or enter an equation to get started.
             </p>
+
+            {/* Shared viewer for uploaded and saved graphs */}
+            {activeGraph && (
+              <section
+                aria-labelledby="active-graph-heading"
+                className="mt-8 rounded-2xl border border-[#8B7786] bg-white p-5 shadow-[4px_4px_0px_#C9B5C0] sm:p-8"
+              >
+                <h2
+                  id="active-graph-heading"
+                  className="mb-4 text-lg font-bold"
+                >
+                  Graph Viewer
+                </h2>
+                <GraphPlot graph={activeGraph} />
+              </section>
+            )}
 
             {/* Main workspace card */}
             <div className="mt-8 overflow-hidden rounded-2xl border border-[#8B7786] bg-white shadow-[4px_4px_0px_#C9B5C0]">
@@ -187,7 +364,6 @@ export default function Dashboard() {
                     <h2 id="upload-heading" className="text-lg font-bold">
                       Upload a Graph
                     </h2>
-
                     <p className="mt-2 text-sm leading-6 text-[#514752]">
                       Choose a graph image to preview and explore.
                     </p>
@@ -203,6 +379,7 @@ export default function Dashboard() {
                   </label>
 
                   <input
+                    ref={uploadInputRef}
                     id="graph-upload"
                     type="file"
                     accept=".png,.jpg,.jpeg,image/png,image/jpeg"
@@ -251,7 +428,11 @@ export default function Dashboard() {
 
                   {selectedImage && (
                     <div className="mt-8 border-t border-[#E2D4DE] pt-8">
-                      <GraphImageReader selectedImage={selectedImage} />
+                      <GraphImageReader
+                        selectedImage={selectedImage}
+                        onGraphRead={handleGraphRead}
+                        onGraphSaved={handleGraphSaved}
+                      />
                     </div>
                   )}
                 </div>
@@ -286,7 +467,6 @@ export default function Dashboard() {
                     <h2 id="equation-heading" className="text-lg font-bold">
                       Enter an Equation
                     </h2>
-
                     <p className="mt-2 text-sm leading-6 text-[#514752]">
                       Type an equation you want to explore.
                     </p>
@@ -309,10 +489,7 @@ export default function Dashboard() {
         className="m-auto max-h-[90dvh] w-[min(92vw,850px)] overflow-y-auto rounded-2xl border-2 border-[#554450] bg-white p-0 text-[#171923] shadow-2xl backdrop:bg-[#171923]/80"
       >
         <div className="flex items-center justify-between gap-4 border-b border-[#E2D4DE] px-5 py-4 sm:px-7">
-          <h2
-            id="preview-title"
-            className="text-lg font-bold sm:text-xl"
-          >
+          <h2 id="preview-title" className="text-lg font-bold sm:text-xl">
             Graph Preview
           </h2>
 
@@ -363,4 +540,56 @@ export default function Dashboard() {
       </dialog>
     </div>
   );
+}
+
+function getSavedGraphData(savedGraph) {
+  let graphData = savedGraph?.graph_data;
+
+  if (typeof graphData === "string") {
+    try {
+      graphData = JSON.parse(graphData);
+    } catch {
+      return null;
+    }
+  }
+
+  if (
+    !graphData ||
+    typeof graphData !== "object" ||
+    Array.isArray(graphData)
+  ) {
+    return null;
+  }
+
+  return graphData;
+}
+
+function formatSavedDate(value) {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? ""
+    : `Saved ${date.toLocaleDateString()}`;
+}
+
+async function fetchSavedGraphsFromApi() {
+  const response = await fetch("/api/graphs", { cache: "no-store" });
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(
+      result.error ||
+        (response.status === 401
+          ? "Sign in to view your saved graphs."
+          : "Could not load saved graphs.")
+    );
+  }
+
+  if (!Array.isArray(result.graphs)) {
+    throw new Error("The saved graphs response was invalid.");
+  }
+
+  return result.graphs;
 }
