@@ -44,7 +44,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const graph: unknown = await request.json();
+    let graph: unknown;
+    try {
+      graph = await request.json();
+    } catch {
+      return Response.json(
+        { error: "Invalid JSON body." },
+        { status: 400 }
+      );
+    }
 
     if (!isValidGraph(graph)) {
       return Response.json(
