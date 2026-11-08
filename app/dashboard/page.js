@@ -1,12 +1,15 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import GraphImageReader from "../../components/GraphImageReader";
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 export default function Dashboard() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState("");
+  const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [fileError, setFileError] = useState("");
   const [equation, setEquation] = useState("");
@@ -15,7 +18,7 @@ export default function Dashboard() {
   const previousFocusRef = useRef(null);
   const objectUrlRef = useRef(null);
 
-  // Release temporary image memory when leaving the page
+  // Release temporary image memory when leaving the page.
   useEffect(() => {
     return () => {
       if (objectUrlRef.current) {
@@ -24,7 +27,6 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Open the accessible image preview
   function openPreview() {
     previousFocusRef.current = document.activeElement;
 
@@ -37,32 +39,46 @@ export default function Dashboard() {
     dialogRef.current?.close();
   }
 
-  // Validate and preview the selected graph image
+  function clearImageSelection(event, errorMessage) {
+    setFileError(errorMessage);
+    setSelectedFile("");
+    setSelectedImage(null);
+    setPreviewUrl("");
+    event.target.value = "";
+
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  }
+
+  // Validate, store, and preview the selected graph image.
   function handleFileChange(event) {
     const file = event.target.files?.[0];
 
     if (!file) return;
 
-    const validType = ["image/png", "image/jpeg"].includes(
-      file.type
-    );
-
+    const validType = ["image/png", "image/jpeg"].includes(file.type);
     const validExtension = /\.(png|jpe?g)$/i.test(file.name);
 
     if (!validType || !validExtension) {
-      setFileError("Please choose a PNG or JPG image.");
-      setSelectedFile("");
-      setPreviewUrl("");
-      event.target.value = "";
-
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = null;
-      }
+      clearImageSelection(event, "Please choose a PNG or JPG image.");
       return;
     }
 
-    // Create a temporary browser URL for preview
+    if (file.size === 0) {
+      clearImageSelection(event, "The selected image is empty.");
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      clearImageSelection(
+        event,
+        "Choose an image that is 5 MB or smaller."
+      );
+      return;
+    }
+
     const newUrl = URL.createObjectURL(file);
 
     if (objectUrlRef.current) {
@@ -72,16 +88,16 @@ export default function Dashboard() {
     objectUrlRef.current = newUrl;
 
     setSelectedFile(file.name);
+    setSelectedImage(file);
     setPreviewUrl(newUrl);
     setFileError("");
 
-    // Open automatically after selection
+    // Open the accessible image preview after selection.
     openPreview();
   }
 
   return (
     <div className="min-h-full bg-[#EEE3E9] text-[#171923]">
-
       {/* Mobile history toggle */}
       <div className="border-b border-[#D8C6D1] bg-[#F7F2F5] px-5 py-3 lg:hidden">
         <button
@@ -96,8 +112,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid min-h-[calc(100vh-65px)] lg:grid-cols-[230px_minmax(0,1fr)]">
-
-        {/* HISTORY SIDEBAR */}
+        {/* History sidebar */}
         <aside
           id="graph-history"
           aria-labelledby="history-heading"
@@ -105,10 +120,7 @@ export default function Dashboard() {
             historyOpen ? "block" : "hidden"
           }`}
         >
-          <h2
-            id="history-heading"
-            className="text-lg font-bold"
-          >
+          <h2 id="history-heading" className="text-lg font-bold">
             Recent Graphs
           </h2>
 
@@ -118,9 +130,7 @@ export default function Dashboard() {
           />
 
           <div className="mt-8 border-t border-[#D8C6D1] pt-7">
-            <p className="text-sm font-semibold">
-              No saved graphs yet
-            </p>
+            <p className="text-sm font-semibold">No saved graphs yet</p>
 
             <p className="mt-2 text-sm leading-6 text-[#514752]">
               Your saved graphs will appear here.
@@ -128,13 +138,12 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        {/* WORKSPACE */}
+        {/* Main workspace */}
         <section
           aria-labelledby="dashboard-heading"
           className="min-w-0 px-5 py-10 sm:px-10 lg:px-14 lg:py-14"
         >
           <div className="mx-auto max-w-3xl">
-
             <h1
               id="dashboard-heading"
               className="text-2xl font-bold tracking-tight sm:text-3xl"
@@ -143,20 +152,17 @@ export default function Dashboard() {
             </h1>
 
             <p className="mt-3 text-base leading-7 text-[#443B46]">
-              Upload a graph image or enter an equation
-              to get started.
+              Upload a graph image or enter an equation to get started.
             </p>
 
-            {/* MAIN WORKSPACE CARD */}
+            {/* Main workspace card */}
             <div className="mt-8 overflow-hidden rounded-2xl border border-[#8B7786] bg-white shadow-[4px_4px_0px_#C9B5C0]">
-
-              {/* UPLOAD OPTION */}
+              {/* Upload option */}
               <section
                 aria-labelledby="upload-heading"
                 className="px-6 py-8 sm:px-9"
               >
                 <div className="flex items-start gap-4">
-
                   <div
                     aria-hidden="true"
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#F2E4EC]"
@@ -178,10 +184,7 @@ export default function Dashboard() {
                   </div>
 
                   <div>
-                    <h2
-                      id="upload-heading"
-                      className="text-lg font-bold"
-                    >
+                    <h2 id="upload-heading" className="text-lg font-bold">
                       Upload a Graph
                     </h2>
 
@@ -217,7 +220,7 @@ export default function Dashboard() {
                     id="upload-help"
                     className="mt-3 text-sm text-[#514752]"
                   >
-                    PNG or JPG only
+                    PNG or JPG only, up to 5 MB
                   </p>
 
                   {fileError && (
@@ -233,7 +236,7 @@ export default function Dashboard() {
                   {selectedFile && (
                     <div className="mt-4 flex flex-wrap items-center gap-3">
                       <p className="min-w-0 break-all text-sm font-medium text-[#514752]">
-                        Image ready for preview
+                        Image ready for preview: {selectedFile}
                       </p>
 
                       <button
@@ -243,6 +246,12 @@ export default function Dashboard() {
                       >
                         View Image
                       </button>
+                    </div>
+                  )}
+
+                  {selectedImage && (
+                    <div className="mt-8 border-t border-[#E2D4DE] pt-8">
+                      <GraphImageReader selectedImage={selectedImage} />
                     </div>
                   )}
                 </div>
@@ -260,13 +269,12 @@ export default function Dashboard() {
                 <div className="h-px flex-1 bg-[#E2D4DE]" />
               </div>
 
-              {/* EQUATION OPTION */}
+              {/* Equation option */}
               <section
                 aria-labelledby="equation-heading"
                 className="px-6 py-8 sm:px-9"
               >
                 <div className="flex items-start gap-4">
-
                   <div
                     aria-hidden="true"
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#F2E4EC] text-2xl font-semibold text-[#774365]"
@@ -275,10 +283,7 @@ export default function Dashboard() {
                   </div>
 
                   <div>
-                    <h2
-                      id="equation-heading"
-                      className="text-lg font-bold"
-                    >
+                    <h2 id="equation-heading" className="text-lg font-bold">
                       Enter an Equation
                     </h2>
 
@@ -321,15 +326,14 @@ export default function Dashboard() {
         </section>
       </div>
 
-      {/* ACCESSIBLE IMAGE PREVIEW MODAL */}
+      {/* Accessible image preview modal */}
       <dialog
         ref={dialogRef}
         aria-labelledby="preview-title"
         aria-describedby="preview-description"
         onClose={() => previousFocusRef.current?.focus()}
-        className="m-auto w-[min(92vw,850px)] max-h-[90dvh] overflow-y-auto rounded-2xl border-2 border-[#554450] bg-white p-0 text-[#171923] shadow-2xl backdrop:bg-[#171923]/80"
+        className="m-auto max-h-[90dvh] w-[min(92vw,850px)] overflow-y-auto rounded-2xl border-2 border-[#554450] bg-white p-0 text-[#171923] shadow-2xl backdrop:bg-[#171923]/80"
       >
-        {/* Popup header */}
         <div className="flex items-center justify-between gap-4 border-b border-[#E2D4DE] px-5 py-4 sm:px-7">
           <h2
             id="preview-title"
@@ -349,7 +353,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Selected graph image */}
         <div className="px-5 py-5 sm:px-7">
           <p className="mb-4 break-all text-sm font-medium text-[#514752]">
             {selectedFile}
@@ -372,8 +375,7 @@ export default function Dashboard() {
             id="preview-description"
             className="mt-4 text-sm leading-6 text-[#514752]"
           >
-            This is a preview of your selected image.
-            Graph reading and audio exploration are not connected yet.
+            Close this preview to return to the upload area and read the graph.
           </p>
 
           <button
@@ -388,11 +390,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
