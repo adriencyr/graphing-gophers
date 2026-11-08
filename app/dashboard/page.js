@@ -1,12 +1,15 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import GraphImageReader from "../../components/GraphImageReader";
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 export default function Dashboard() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState("");
+  const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [fileError, setFileError] = useState("");
   const [equation, setEquation] = useState("");
@@ -15,7 +18,7 @@ export default function Dashboard() {
   const previousFocusRef = useRef(null);
   const objectUrlRef = useRef(null);
 
-  // Clean up temporary image URLs
+  // Release temporary image memory when leaving the page.
   useEffect(() => {
     return () => {
       if (objectUrlRef.current) {
@@ -37,28 +40,43 @@ export default function Dashboard() {
     dialogRef.current?.close();
   }
 
-  // Validate PNG and JPG images
+  function clearImageSelection(event, errorMessage) {
+    setFileError(errorMessage);
+    setSelectedFile("");
+    setSelectedImage(null);
+    setPreviewUrl("");
+    event.target.value = "";
+
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  }
+
+  // Validate, store, and preview the selected graph image.
   function handleFileChange(event) {
     const file = event.target.files?.[0];
 
     if (!file) return;
 
-    const validType = ["image/png", "image/jpeg"].includes(
-      file.type
-    );
-
+    const validType = ["image/png", "image/jpeg"].includes(file.type);
     const validExtension = /\.(png|jpe?g)$/i.test(file.name);
 
     if (!validType || !validExtension) {
-      setFileError("Please choose a PNG or JPG image.");
-      setSelectedFile("");
-      setPreviewUrl("");
-      event.target.value = "";
+      clearImageSelection(event, "Please choose a PNG or JPG image.");
+      return;
+    }
 
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = null;
-      }
+    if (file.size === 0) {
+      clearImageSelection(event, "The selected image is empty.");
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      clearImageSelection(
+        event,
+        "Choose an image that is 5 MB or smaller."
+      );
       return;
     }
 
@@ -71,16 +89,16 @@ export default function Dashboard() {
     objectUrlRef.current = newUrl;
 
     setSelectedFile(file.name);
+    setSelectedImage(file);
     setPreviewUrl(newUrl);
     setFileError("");
 
-    // Preview automatically after selection
+    // Open the accessible image preview after selection.
     openPreview();
   }
 
   return (
     <div className="min-h-full bg-[#EEE3E9] text-[#171923]">
-
       {/* Mobile history toggle */}
       <div className="border-b border-[#D8C6D1] bg-[#F7F2F5] px-5 py-3 lg:hidden">
         <button
@@ -197,10 +215,7 @@ export default function Dashboard() {
                   </div>
 
                   <div>
-                    <h2
-                      id="upload-heading"
-                      className="text-lg font-bold"
-                    >
+                    <h2 id="upload-heading" className="text-lg font-bold">
                       Upload a Graph
                     </h2>
 
@@ -236,7 +251,7 @@ export default function Dashboard() {
                     id="upload-help"
                     className="mt-3 text-sm text-[#514752]"
                   >
-                    PNG or JPG only
+                    PNG or JPG only, up to 5 MB
                   </p>
 
                   {fileError && (
@@ -267,6 +282,12 @@ export default function Dashboard() {
                       </button>
                     </div>
                   )}
+
+                  {selectedImage && (
+                    <div className="mt-8 border-t border-[#E2D4DE] pt-8">
+                      <GraphImageReader selectedImage={selectedImage} />
+                    </div>
+                  )}
                 </div>
               </section>
 
@@ -282,7 +303,7 @@ export default function Dashboard() {
                 <div className="h-px flex-1 bg-[#E2D4DE]" />
               </div>
 
-              {/* EQUATION OPTION */}
+              {/* Equation option */}
               <section
                 aria-labelledby="equation-heading"
                 className="px-6 py-8 sm:px-9"
@@ -298,10 +319,7 @@ export default function Dashboard() {
                   </div>
 
                   <div>
-                    <h2
-                      id="equation-heading"
-                      className="text-lg font-bold"
-                    >
+                    <h2 id="equation-heading" className="text-lg font-bold">
                       Enter an Equation
                     </h2>
 
@@ -347,7 +365,7 @@ export default function Dashboard() {
         </section>
       </div>
 
-      {/* ACCESSIBLE IMAGE PREVIEW MODAL */}
+      {/* Accessible image preview modal */}
       <dialog
         ref={dialogRef}
         aria-labelledby="preview-title"
@@ -398,8 +416,7 @@ export default function Dashboard() {
             id="preview-description"
             className="mt-4 text-sm leading-6 text-[#514752]"
           >
-            This is a preview of your selected image.
-            Graph reading and audio exploration are not connected yet.
+            Close this preview to return to the upload area and read the graph.
           </p>
 
           <button
