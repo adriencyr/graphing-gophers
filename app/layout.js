@@ -40,7 +40,10 @@ export default function RootLayout({ children }) {
         <div className="flex min-h-screen flex-col">
 
           {/* Shared header */}
-          <header className="relative z-10 border-b border-white/20 bg-[#171923]">
+          <header
+            className="relative z-20 shrink-0 border-b border-white/20
+              bg-[#171923] text-white"
+          >
             <div className="mx-auto flex max-w-7xl items-center px-6 py-5 sm:px-10">
               <Link
                 href="/"
@@ -57,7 +60,7 @@ export default function RootLayout({ children }) {
           <main
             id="main-content"
             tabIndex={-1}
-            className="min-w-0 flex-1"
+            className="relative isolate min-w-0 flex-1"
           >
             {children}
           </main>

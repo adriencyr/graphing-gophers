@@ -47,9 +47,9 @@ export default function GoogleLoginButton({
         aria-busy={loading}
         aria-describedby={hasError ? errorId : undefined}
         className="
-          flex min-h-11 w-full items-center justify-center gap-2.5 rounded
-          border border-[#747775] bg-white px-3 py-2 text-sm font-medium
-          text-[#1f1f1f] transition-colors hover:bg-zinc-100
+          flex min-h-12 w-full items-center justify-center gap-1.5 rounded-lg
+          border border-[#747775] bg-white px-2 py-2 text-xs font-medium
+          text-[#1f1f1f] transition-colors hover:bg-zinc-100 sm:text-sm
           focus-visible:outline-2 focus-visible:outline-offset-4
           focus-visible:outline-blue-600 disabled:cursor-not-allowed
           disabled:opacity-60
@@ -105,7 +105,7 @@ export default function GoogleLoginButton({
         <p
           id={errorId}
           role="alert"
-          className="mt-3 text-sm text-red-700 dark:text-red-300"
+          className="mt-3 rounded bg-red-50 p-3 text-sm text-red-800"
         >
           {errorMessage}
         </p>

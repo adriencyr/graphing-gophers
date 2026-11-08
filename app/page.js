@@ -1,3 +1,5 @@
+import GoogleSignIn from "../components/GoogleSignIn";
+
 export default function Home() {
   return (
     <div
@@ -48,17 +50,14 @@ export default function Home() {
               Continue as Guest
             </button>
 
-            <button
-              type="button"
-              className="min-h-12 rounded-lg border border-white/70 bg-transparent px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/15 focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-[#F0C8DF]"
-            >
-              Sign In / Register
-            </button>
+            <div className="min-w-0 sm:flex-1">
+              <GoogleSignIn />
+            </div>
           </div>
 
           {/* Guest information */}
           <p className="mt-5 text-sm text-white/85">
-            Guest work won't be saved.
+            Guest work won&apos;t be saved.
           </p>
         </section>
       </div>
