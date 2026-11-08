@@ -16,7 +16,6 @@ export default defineConfig({
     },
   }],
   test: {
-    environment: "jsdom",
-    setupFiles: ["./components/login-button-tests/setup.ts"],
+    environment: "jsdom"
   },
 });
