@@ -13,7 +13,7 @@ function loginWithGoogle(): Promise<void> {
 
 export default function LoginPage() {
   return (
-    <main
+    <div
       className="flex flex-1 items-center justify-center bg-zinc-50 px-4
         py-12 font-sans dark:bg-black"
     >
@@ -27,22 +27,23 @@ export default function LoginPage() {
         >
           Graphing Gophers
         </p>
+
         <h1
           id="login-heading"
           className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50"
         >
           Sign in
         </h1>
+
         <p
           className="mb-6 mt-3 text-sm leading-6 text-zinc-600
             dark:text-zinc-400"
         >
           Sign in with your Google account to use Graphing Gophers.
         </p>
-        <GoogleLoginButton
-          onGoogleLogin={loginWithGoogle}
-        />
+
+        <GoogleLoginButton onGoogleLogin={loginWithGoogle} />
       </section>
-    </main>
+    </div>
   );
 }
