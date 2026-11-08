@@ -1,4 +1,3 @@
-
 export default function Home() {
   return (
     <div
@@ -24,14 +23,9 @@ export default function Home() {
       </a>
 
       {/* Welcome section */}
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="relative z-10 mx-auto flex min-h-[calc(100vh-70px)] max-w-7xl items-center px-6 py-12 sm:px-10"
-      >
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-70px)] max-w-7xl items-center px-6 py-12 sm:px-10">
         {/* Compact, subtle content panel */}
         <section className="w-full max-w-md rounded-xl border border-white/15 bg-[#14181F]/55 p-6 shadow-[0_8px_28px_rgba(0,0,0,0.18)] backdrop-blur-sm sm:p-8">
-
           {/* Main heading */}
           <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-[34px]">
             Hear the Graph.
@@ -66,14 +60,8 @@ export default function Home() {
           <p className="mt-5 text-sm text-white/85">
             Guest work won't be saved.
           </p>
-
         </section>
-      </main>
+      </div>
     </div>
   );
 }
-
-
-
-
-
