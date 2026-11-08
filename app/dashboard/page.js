@@ -3,10 +3,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import GraphImageReader from "../../components/GraphImageReader";
 
 export default function Dashboard() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState("");
+  const [imageFile, setImageFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [fileError, setFileError] = useState("");
   const [equation, setEquation] = useState("");
@@ -49,8 +51,10 @@ export default function Dashboard() {
 
     const validExtension = /\.(png|jpe?g)$/i.test(file.name);
 
-    if (!validType || !validExtension) {
-      setFileError("Please choose a PNG or JPG image.");
+    if (!validType || !validExtension || file.size === 0 ||
+        file.size > 5 * 1024 * 1024) {
+      setFileError("Choose a non-empty PNG or JPG image, up to 5 MB.");
+      setImageFile(null);
       setSelectedFile("");
       setPreviewUrl("");
       event.target.value = "";
@@ -72,6 +76,7 @@ export default function Dashboard() {
     objectUrlRef.current = newUrl;
 
     setSelectedFile(file.name);
+    setImageFile(file);
     setPreviewUrl(newUrl);
     setFileError("");
 
@@ -217,7 +222,7 @@ export default function Dashboard() {
                     id="upload-help"
                     className="mt-3 text-sm text-[#514752]"
                   >
-                    PNG or JPG only
+                    PNG or JPG, up to 5 MB
                   </p>
 
                   {fileError && (
@@ -246,6 +251,12 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
+
+                {imageFile && (
+                  <div className="mt-6 border-t border-[#D8C6D1] pt-6">
+                    <GraphImageReader key={previewUrl} image={imageFile} />
+                  </div>
+                )}
               </section>
 
               {/* OR divider */}
@@ -373,7 +384,8 @@ export default function Dashboard() {
             className="mt-4 text-sm leading-6 text-[#514752]"
           >
             This is a preview of your selected image.
-            Graph reading and audio exploration are not connected yet.
+            Close this preview and choose Read graph below the upload field
+            to generate a plot and explore its values with sound.
           </p>
 
           <button

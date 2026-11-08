@@ -6,7 +6,8 @@ import GoogleLoginButton from "./GoogleLoginButton";
 function loginWithGoogle(): Promise<void> {
   // Auth0 requires a full-page request to start its external redirect flow.
   // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-  window.location.href = "/auth/login?connection=google-oauth2";
+  window.location.href =
+    "/auth/login?connection=google-oauth2&returnTo=%2Fdashboard";
 
   // Keep the button busy until the browser leaves this page.
   return new Promise<void>(() => {});
