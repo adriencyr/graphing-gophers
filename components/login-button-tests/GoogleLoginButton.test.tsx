@@ -8,7 +8,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import GoogleLoginButton from "../GoogleLoginButton";
-import LoginPage from "../../app/login/page";
+import Home from "../../app/page";
 
 describe("GoogleLoginButton", () => {
   it("invokes the callback without submitting a form", async () => {
@@ -117,8 +117,8 @@ describe("GoogleLoginButton", () => {
   });
 });
 
-it("redirects to Google login and stays busy until navigation", () => {
-  const location = { href: "http://localhost:3000/login" };
+it("redirects to Google and permits retry after Back restores the page", () => {
+  const location = { href: "http://localhost:3000/" };
   const browserWindow = window;
   vi.stubGlobal("window", new Proxy(browserWindow, {
     get(target, property) {
@@ -129,15 +129,41 @@ it("redirects to Google login and stays busy until navigation", () => {
   }));
 
   try {
-    render(<LoginPage />);
+    render(<Home />);
     expect(
-      screen.getByRole("heading", { level: 1, name: "Sign in" }),
+      screen.getByRole("heading", { level: 1 }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button"));
+    const button = screen.getByRole("button", {
+      name: "Sign in with Google",
+    });
+    expect(screen.getByRole("button", {
+      name: "Continue as Guest",
+    })).toBeInTheDocument();
+    fireEvent.click(button);
     expect(location.href).toBe("/api/auth/login?connection=google-oauth2");
-    expect(screen.getByRole("button")).toBeDisabled();
-    expect(screen.getByRole("button")).toHaveAttribute("aria-busy", "true");
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // A normal pageshow must not unlock an active redirect.
+    fireEvent(window, new PageTransitionEvent("pageshow"));
+    expect(button).toBeDisabled();
+
+    fireEvent(window, new PageTransitionEvent("pageshow", {
+      persisted: true,
+    }));
+    const restoredButton = screen.getByRole("button", {
+      name: "Sign in with Google",
+    });
+    expect(restoredButton).toBeEnabled();
+    expect(restoredButton).toHaveAttribute("aria-busy", "false");
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+
+    // Verify the restored button starts another redirect and locks again.
+    location.href = "http://localhost:3000/";
+    fireEvent.click(restoredButton);
+    expect(location.href).toBe("/api/auth/login?connection=google-oauth2");
+    expect(restoredButton).toBeDisabled();
   } finally {
     vi.unstubAllGlobals();
   }
