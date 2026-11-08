@@ -117,15 +117,28 @@ describe("GoogleLoginButton", () => {
   });
 });
 
-it("shows the preview failure on the login page", async () => {
-  render(<LoginPage />);
-  expect(
-    screen.getByRole("heading", { level: 1, name: "Sign in" }),
-  ).toBeInTheDocument();
-  await userEvent.click(
-    screen.getByRole("button", { name: "Sign in with Google" }),
-  );
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Google sign-in is not available yet.",
-  );
+it("redirects to Google login and stays busy until navigation", () => {
+  const location = { href: "http://localhost:3000/login" };
+  const browserWindow = window;
+  vi.stubGlobal("window", new Proxy(browserWindow, {
+    get(target, property) {
+      return property === "location"
+        ? location
+        : Reflect.get(target, property);
+    },
+  }));
+
+  try {
+    render(<LoginPage />);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Sign in" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button"));
+    expect(location.href).toBe("/api/auth/login?connection=google-oauth2");
+    expect(screen.getByRole("button")).toBeDisabled();
+    expect(screen.getByRole("button")).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

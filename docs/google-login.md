@@ -1,10 +1,8 @@
 # Google sign-in frontend
 
-Visit `/login` to view the responsive sign-in page. The page uses a frontend-
-only
-placeholder that rejects with an availability message; it does not authenticate,
-redirect, contact Google, or simulate a successful login. The existing empty
-`components/login-frontend` IDE file is left untouched.
+Visit `/login` to view the responsive sign-in page. Clicking the Google button
+navigates to `/api/auth/login?connection=google-oauth2`.
+The existing Auth0 route starts authentication with the Google connection.
 
 ## Props
 
@@ -25,10 +23,16 @@ rendered.
 
 ## Connect authentication
 
-Replace `previewGoogleLogin` in `app/login/page.tsx` with the authentication
-team's
-client-side handler. Callbacks must originate in a Client Component because
-ordinary functions cannot cross the Next.js server/client boundary.
+`loginWithGoogle` in `app/login/page.tsx` sets `window.location.href` to the
+Auth0 login URL. Its promise stays pending to keep the button disabled until
+navigation unloads the page. The reusable button remains provider-independent.
+Callbacks must originate in a Client Component because ordinary functions cannot
+cross the Next.js server/client boundary.
+
+The existing Auth0 route and server environment must be configured, and the
+`google-oauth2` connection must be enabled for the application in Auth0.
+Callback errors before navigation appear in the button's alert. Authentication
+errors after navigation are handled by the authentication route and provider.
 
 ```tsx
 "use client";
@@ -46,18 +50,15 @@ export function LoginOption({
 
 The authentication layer owns redirects, sessions, provider configuration, and
 success navigation. The button owns pending state, an immediate duplicate-click
-guard, and retryable errors. A synchronous callback is supported, but
-asynchronous
+guard, and retryable errors. A synchronous callback is supported, but async
 work must return its promise. Errors clear on the next attempt. Separate mounted
 buttons have independent state; use `disabled` if a parent needs a shared lock.
 
 The native `type="button"` supports Tab, Enter, and Space without submitting a
 parent form. Tailwind provides a visible keyboard focus outline, full-width
 layout, and a minimum 44px touch target. Busy status is announced in a live
-region;
-failures use an alert associated with the button. The white button and
-multicolor
-G use Google's light-button design. See the [Google branding
+region; failures use an alert associated with the button. The white button and
+multicolor G use Google's light-button design. See the [Google branding
 guidelines][google].
 
 [google]: https://developers.google.com/identity/branding-guidelines
@@ -72,7 +73,7 @@ currently displays the Next.js starter page; it is separate from `/login`.
 
 - `npm test`: mock callback success, synchronous/asynchronous failure, loading,
   duplicate-click protection, external disablement, retry, keyboard activation,
-  form behavior, and login-page integration.
+  form behavior, and the Google login redirect with pending state.
 - `npm run lint`
 - `npm run typecheck`: generate Next.js route types and independently check
   TypeScript (the existing configuration skips build-time type errors).
@@ -81,7 +82,6 @@ currently displays the Next.js starter page; it is separate from `/login`.
 For visual review, open `/login` at mobile and desktop widths, including dark
 mode. Tab to the button to inspect focus visibility.
 
-Current verification: 9 interaction tests, TypeScript, and lint pass. Production
-build verification is blocked in the development environment by Turbopack's CSS
-worker failing to bind a local port (`Operation not permitted`). Browser visual
-review is still pending.
+Interaction tests mock browser navigation; they do not perform a live Google
+login. Production build previously passed in the user's terminal. A live sign-in
+still needs verification with the configured Auth0 environment.

@@ -2,9 +2,13 @@
 
 import GoogleLoginButton from "../../components/GoogleLoginButton";
 
-// Replace this preview handler with the auth team's client API.
-async function previewGoogleLogin() {
-  throw new Error("Authentication is not connected.");
+function loginWithGoogle(): Promise<void> {
+  // Auth0 requires a full-page request to start its external redirect flow.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+  window.location.href = "/api/auth/login?connection=google-oauth2";
+
+  // Keep the button busy until the browser leaves this page.
+  return new Promise<void>(() => {});
 }
 
 export default function LoginPage() {
@@ -33,14 +37,10 @@ export default function LoginPage() {
           className="mb-6 mt-3 text-sm leading-6 text-zinc-600
             dark:text-zinc-400"
         >
-          Frontend preview. Google sign-in will be available when
-          authentication is connected.
+          Sign in with your Google account to use Graphing Gophers.
         </p>
         <GoogleLoginButton
-          onGoogleLogin={previewGoogleLogin}
-          errorMessage={
-            "Google sign-in is not available yet. Please try again later."
-          }
+          onGoogleLogin={loginWithGoogle}
         />
       </section>
     </main>
