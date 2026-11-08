@@ -125,7 +125,7 @@ export async function POST(request) {
     const imageData = Buffer.from(await image.arrayBuffer()).toString("base64");
 
     const result = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
+      model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
       contents: [
         {
           inlineData: {
@@ -137,6 +137,7 @@ export async function POST(request) {
           text: [
             "Analyze this image as an XY Cartesian graph with linear axes.",
             "Estimate coordinates along the visible curve using the axis labels and tick marks.",
+            "Sample the entire visible curve, including unmarked sections, endpoints, turning points, and enough intermediate points to represent its shape.",
             "Return points in increasing x order because the app will connect them.",
             "Do not extrapolate beyond the visible curve or invent points.",
             "If this is not a graph, its axes or scale cannot be read, or the curve is too blurry to estimate responsibly, return status unreadable and an empty points array.",
@@ -183,10 +184,17 @@ export async function POST(request) {
     graph.points.sort((a, b) => a.x - b.x);
 
     return Response.json(graph);
-  } catch {
+  } catch (error) {
+        console.error("[Graph Extraction] Request failed:", {
+        name: error instanceof Error ? error.name : "UnknownError",
+        message: error instanceof Error ? error.message : String(error),
+        status: error?.status,
+        code: error?.code,
+    });
+
     return Response.json(
-      { error: "Could not read that graph image. Try a clearer image." },
-      { status: 502 }
+        { error: "Could not read that graph image. Try a clearer image." },
+        { status: 502 }
     );
-  }
+    }
 }
