@@ -15,10 +15,13 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "@auth0/nextjs-auth0": "3.5.0",
+    "@auth0/nextjs-auth0": "^4.33.0",
+    "@google/genai": "^3.0.0",
+    "@supabase/supabase-js": "^2.119.0",
     "next": "16.4.5",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
@@ -34,5 +37,8 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.12"
+  },
+  "allowScripts": {
+    "protobufjs@7.6.6": true
   }
 }
