@@ -1,5 +1,6 @@
 import Link from "next/link";
 import GoogleSignIn from "../components/GoogleSignIn";
+import Link from "next/link";
 
 export default function Home() {
   return (
