@@ -1,23 +1,29 @@
 "use client";
 
-import { useState } from "react";
-import GraphPlot from "./GraphPlot";
+import { useEffect, useRef, useState } from "react";
 import SaveGraphButton from "./SaveGraphButton";
 
 const ALLOWED_TYPES = new Set(["image/png", "image/jpeg"]);
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 /**
- * Analyzes the image selected by the dashboard and renders the graph data.
- * The dashboard owns image selection and preview.
- *
- * @param {{ selectedImage: File | null }} props
+ * Analyzes the image selected by the dashboard and sends readable graph data
+ * back to the dashboard's shared graph viewer.
  */
-export default function GraphImageReader({ selectedImage = null }) {
+export default function GraphImageReader({
+  selectedImage = null,
+  onGraphRead = () => {},
+  onGraphSaved = () => {},
+}) {
   const [analysis, setAnalysis] = useState(null);
+  const requestControllerRef = useRef(null);
 
-  // Keep results associated with the file they came from. When the dashboard
-  // selects a different file, the old result is no longer displayed.
+  // Cancel analysis if the selected file changes or the component unmounts.
+  useEffect(() => {
+    return () => requestControllerRef.current?.abort();
+  }, [selectedImage]);
+
+  // Show results only for the currently selected image.
   const currentAnalysis =
     analysis?.image === selectedImage ? analysis : null;
 
@@ -29,6 +35,7 @@ export default function GraphImageReader({ selectedImage = null }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    onGraphRead(null);
 
     if (!selectedImage) {
       setAnalysis({
@@ -52,6 +59,11 @@ export default function GraphImageReader({ selectedImage = null }) {
       return;
     }
 
+    requestControllerRef.current?.abort();
+
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+
     setAnalysis({
       image: selectedImage,
       graph: null,
@@ -67,9 +79,12 @@ export default function GraphImageReader({ selectedImage = null }) {
       const response = await fetch("/api/extract-graph", {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
 
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
+
+      if (controller.signal.aborted) return;
 
       if (!response.ok) {
         throw new Error(result.error || "Could not read the graph image.");
@@ -81,9 +96,8 @@ export default function GraphImageReader({ selectedImage = null }) {
           graph: null,
           error: "",
           message:
-            result.notes ||
-            "The graph could not be read. Try a clearer image.",
-          isLoading: true,
+            result.notes || "The graph could not be read. Try a clearer image.",
+          isLoading: false,
         });
         return;
       }
@@ -109,9 +123,14 @@ export default function GraphImageReader({ selectedImage = null }) {
         graph: result,
         error: "",
         message: "",
-        isLoading: true,
+        isLoading: false,
       });
+
+      // The dashboard displays the result in its shared graph viewer.
+      onGraphRead(result);
     } catch (requestError) {
+      if (controller.signal.aborted) return;
+
       setAnalysis({
         image: selectedImage,
         graph: null,
@@ -120,25 +139,23 @@ export default function GraphImageReader({ selectedImage = null }) {
             ? requestError.message
             : "Something went wrong. Please try again.",
         message: "",
-        isLoading: true,
+        isLoading: false,
       });
     } finally {
-      setAnalysis((previous) =>
-        previous?.image === selectedImage
-          ? { ...previous, isLoading: false }
-          : previous
-      );
+      if (requestControllerRef.current === controller) {
+        requestControllerRef.current = null;
+      }
     }
   }
 
   function handleGraphSaved(graphId) {
-    console.log("Saved graph:", graphId);
-
     setAnalysis((previous) =>
       previous?.image === selectedImage
         ? { ...previous, message: "Graph saved successfully." }
         : previous
     );
+
+    onGraphSaved(graphId);
   }
 
   return (
@@ -177,12 +194,7 @@ export default function GraphImageReader({ selectedImage = null }) {
 
       {graph && (
         <div aria-live="polite">
-          <GraphPlot graph={graph} />
-
-          <SaveGraphButton
-            graph={graph}
-            onSaved={handleGraphSaved}
-          />
+          <SaveGraphButton graph={graph} onSaved={handleGraphSaved} />
 
           <p>
             Coordinates are estimates. Confidence:{" "}
