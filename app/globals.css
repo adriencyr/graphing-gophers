@@ -24,3 +24,64 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* =========================================
+   GRAPHING GOPHERS - GLOBAL ACCESSIBILITY
+   ========================================= */
+
+/* Keep normal text scaling available */
+html {
+  font-size: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Consistent keyboard focus throughout the app */
+:where(
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  summary
+):focus-visible {
+  outline: 3px solid #774365;
+  outline-offset: 3px;
+}
+
+/* Light focus indicator on the dark shared header */
+header a:focus-visible,
+header button:focus-visible {
+  outline-color: #F0C8DF;
+}
+
+/* Readable highlighting when selecting text */
+::selection {
+  background: #774365;
+  color: #ffffff;
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Support Windows High Contrast mode */
+@media (forced-colors: active) {
+  :where(
+    a,
+    button,
+    input,
+    textarea,
+    select
+  ):focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 3px;
+  }
+}
